@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-4 text-primary text-center">Simulador de Gás Natural B2B</h2>
+
+<form method="POST" id="gasForm" class="bg-body-tertiary p-4 border border-secondary-subtle rounded shadow-sm">
+    <div class="row g-3 mb-4 border-bottom border-secondary-subtle pb-3 bg-body-secondary p-2 rounded align-items-center">
+        <div class="col-md-3">
+            <label class="fw-bold text-body">Fidelização</label>
+            <select name="tipo_fid" class="form-select border-primary fw-bold bg-body text-body" onchange="document.getElementById('gasForm').submit()">
+                <option value="fixo_12m" {% if tipo_fid == 'fixo_12m' %}selected{% endif %}>12 Meses</option>
+                <option value="fixo_24m" {% if tipo_fid == 'fixo_24m' %}selected{% endif %}>24 Meses</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="fw-bold text-body">Opção de Consumo</label>
+            <select name="opcao" class="form-select border-primary bg-body text-body" onchange="document.getElementById('gasForm').submit()">
+                <option value="b1" {% if opcao == 'b1' %}selected{% endif %}>Opção 1 (< 0.5 GWh)</option>
+                <option value="b2" {% if opcao == 'b2' %}selected{% endif %}>Opção 2 (≥ 0.5 GWh)</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="fw-bold text-body">Escalão TAR</label>
+            <select name="escalao" class="form-select border-primary bg-body text-body" onchange="document.getElementById('gasForm').submit()">
+                <option value="1" {% if esc == '1' %}selected{% endif %}>Escalão 1</option>
+                <option value="2" {% if esc == '2' %}selected{% endif %}>Escalão 2</option>
+                <option value="3" {% if esc == '3' %}selected{% endif %}>Escalão 3</option>
+                <option value="4" {% if esc == '4' %}selected{% endif %}>Escalão 4</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="fw-bold text-body">Produto a Simular</label>
+            <select name="prod_idx" class="form-select border-success bg-success text-white bg-opacity-75 fw-bold">
+                {% set lista = config[tipo_fid] if tipo_fid in config else config['fixo_12m'] %}
+                {% for p in lista %}
+                    <option value="{{loop.index0}}" {% if request.form.get('prod_idx')|int == loop.index0 %}selected{% endif %}>
+                        {{p.nome}} ({{ p[opcao]|round(6) }}€)
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-6 border-end border-secondary-subtle">
+            <h5 class="text-danger fw-bold border-bottom border-secondary-subtle pb-2 mb-3">FATURA CLIENTE</h5>
+            
+            <div class="row g-2 mb-3">
+                <div class="col-md-4"><label class="small fw-bold text-body">Consumo (kWh)</label></div>
+                <div class="col-md-8"><input type="number" step="0.01" name="consumo" class="form-control border-danger bg-body text-body" required value="{{ request.form.get('consumo', '') }}"></div>
+            </div>
+            
+            <div class="row g-2 mb-3">
+                <div class="col-md-4"><label class="small fw-bold text-body">Preço Energia (€)</label></div>
+                <div class="col-md-4"><input type="number" step="0.000001" name="c_en_b" class="form-control bg-body text-body" placeholder="Base" value="{{ request.form.get('c_en_b', '') }}"></div>
+                <div class="col-md-4"><input type="number" step="0.000001" name="c_en_t" class="form-control bg-body text-body" placeholder="TAR" value="{{ request.form.get('c_en_t', '') }}"></div>
+            </div>
+
+            <div class="row g-2 mb-3 mt-4 border-top border-secondary-subtle pt-3">
+                <div class="col-md-4"><label class="small fw-bold text-body">Nº de Dias</label></div>
+                <div class="col-md-8"><input type="number" name="dias" class="form-control border-danger bg-body text-body" required value="{{ request.form.get('dias', '30') }}"></div>
+            </div>
+            
+            <div class="row g-2 mb-3">
+                <div class="col-md-4"><label class="small fw-bold text-body">Termo Fixo (€)</label></div>
+                <div class="col-md-4"><input type="number" step="0.000001" name="c_tf_b" class="form-control bg-body text-body" placeholder="Base" value="{{ request.form.get('c_tf_b', '') }}"></div>
+                <div class="col-md-4"><input type="number" step="0.000001" name="c_tf_t" class="form-control bg-body text-body" placeholder="TAR" value="{{ request.form.get('c_tf_t', '') }}"></div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="alert alert-success h-100 shadow-sm border border-success bg-success bg-opacity-10 text-body">
+                <h5 class="fw-bold text-success">Nossa Proposta (Explicação)</h5>
+                <hr class="border-success border-opacity-25">
+                <p>Nesta simulação, as componentes de acesso à rede (TAR) aplicáveis ao Escalão selecionado serão somadas automaticamente ao Preço Base do produto escolhido.</p>
+                <ul class="mb-0">
+                    <li><strong>TAR Energia:</strong> {{ config.tar[esc].en }} €/kWh</li>
+                    <li><strong>TAR Fixa:</strong> {{ config.tar[esc].fixo }} €/dia</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <button type="submit" class="btn btn-primary btn-lg w-100 mt-4 shadow fw-bold">GERAR COMPARATIVO COMPLETO</button>
+</form>
+
+<div id="resultados-ancora"></div>
+
+{% if res %}
+<div class="row mt-5 text-center">
+    <div class="col-md-3"><div class="card p-3 border-danger shadow-sm bg-body-tertiary"><h6 class="text-body-secondary">Gasto Cliente</h6><h3 class="text-danger">{{ res.cli_total }}€</h3></div></div>
+    <div class="col-md-3"><div class="card p-3 border-success shadow-sm bg-body-tertiary"><h6 class="text-body-secondary">Nossa Oferta</h6><h3 class="text-success">{{ res.nos_total }}€</h3></div></div>
+    <div class="col-md-3"><div class="card p-3 bg-primary text-white shadow"><h6 class="text-white-50">Poupança Fatura</h6><h3>{{ res.poup }}€</h3></div></div>
+    <div class="col-md-3"><div class="card p-3 bg-dark text-white shadow"><h6 class="text-white-50">Poupança Anual</h6><h3>{{ res.poup_anual }}€</h3></div></div>
+</div>
+
+<div class="card mt-4 shadow-sm border-secondary-subtle bg-body-tertiary">
+    <div class="card-body">
+        <canvas id="graficoGas" height="80"></canvas>
+    </div>
+</div>
+
+<div class="card mt-4 shadow border-dark bg-body-tertiary">
+    <div class="card-header bg-dark text-white fw-bold text-center">MEMÓRIA DE CÁLCULO GÁS ({{ res.prod_nome }})</div>
+    <div class="card-body p-0">
+        <table class="table table-bordered mb-0 text-center align-middle bg-body text-body">
+            <thead class="table-secondary">
+                <tr><th>Rubrica</th><th>Fatura Cliente (€)</th><th>Nossa Proposta (€)</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="fw-bold px-3 text-body">Energia Ativa</td>
+                    <td class="text-body">{{ request.form.get('consumo') }} kWh x {{ res.cli_det.en_u }}€ = <strong class="text-danger">{{ res.cli_det.en_t }}€</strong></td>
+                    <td class="text-body">{{ request.form.get('consumo') }} kWh x {{ res.nos_det.en_u }}€ = <strong class="text-success">{{ res.nos_det.en_t }}€</strong></td>
+                </tr>
+                <tr>
+                    <td class="fw-bold px-3 text-body">Termo Fixo</td>
+                    <td class="text-body">{{ request.form.get('dias') }} dias x {{ res.cli_det.tf_u }}€ = <strong class="text-danger">{{ res.cli_det.tf_t }}€</strong></td>
+                    <td class="text-body">{{ request.form.get('dias') }} dias x {{ res.nos_det.tf_u }}€ = <strong class="text-success">{{ res.nos_det.tf_t }}€</strong></td>
+                </tr>
+                <tr class="table-group-divider">
+                    <td class="h5 fw-bold text-end text-body">TOTAIS FINAIS:</td>
+                    <td class="h5 text-danger fw-bold">{{ res.cli_total }}€</td>
+                    <td class="h5 text-success fw-bold">{{ res.nos_total }}€</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    var ctx = document.getElementById('graficoGas').getContext('2d');
+    var chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Gasto Cliente Atual', 'Nossa Proposta ({{ res.prod_nome }})'],
+            datasets: [{
+                label: 'Custo Mensal (€)',
+                data: [{{ res.cli_total|replace(',', '.') }}, {{ res.nos_total|replace(',', '.') }}],
+                backgroundColor: ['rgba(220, 53, 69, 0.85)', 'rgba(25, 135, 84, 0.85)'],
+                borderColor: ['#dc3545', '#198754'],
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+
+    document.getElementById('resultados-ancora').scrollIntoView({ behavior: 'smooth', block: 'start' });
+</script>
+{% endif %}
+{% endblock %}

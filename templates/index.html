@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="text-center py-5 mb-5 rounded-4 shadow-sm bg-body-tertiary border">
+    <div class="container py-4">
+        <h1 class="display-5 fw-bold mb-3 text-body">Plataforma de Simulação B2B</h1>
+        <p class="lead text-body-secondary mb-4 mx-auto" style="max-width: 700px;">Acelere o fecho de propostas de Eletricidade e Gás Natural com simulações precisas, gestão de tarifas ERSE em tempo real e comparativos instantâneos.</p>
+    </div>
+</div>
+
+<div class="row g-4 justify-content-center">
+    
+    <div class="col-md-4">
+        <a href="/eletricidade" class="text-decoration-none">
+            <div class="card h-100 shadow-sm card-hover text-center p-4 bg-body border border-opacity-10 border-primary">
+                <div class="card-body">
+                    <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-10 text-primary rounded-circle mb-4 shadow-sm" style="width: 90px; height: 90px;">
+                        <i class="fa-solid fa-bolt fs-1"></i>
+                    </div>
+                    <h4 class="card-title text-body fw-bold">Eletricidade</h4>
+                    <p class="card-text text-body-secondary mt-3">Simulador detalhado de BTN e BTE com cálculo inteligente de TARs, potências e Energia Verde.</p>
+                </div>
+                <div class="card-footer bg-transparent border-0 mt-2">
+                    <span class="btn btn-primary w-100 fw-bold shadow-sm rounded-pill py-2">Iniciar Simulação <i class="fa-solid fa-arrow-right ms-2"></i></span>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="col-md-4">
+        <a href="/gas" class="text-decoration-none">
+            <div class="card h-100 shadow-sm card-hover text-center p-4 bg-body border border-opacity-10 border-danger">
+                <div class="card-body">
+                    <div class="d-inline-flex align-items-center justify-content-center bg-danger bg-opacity-10 text-danger rounded-circle mb-4 shadow-sm" style="width: 90px; height: 90px;">
+                        <i class="fa-solid fa-fire fs-1"></i>
+                    </div>
+                    <h4 class="card-title text-body fw-bold">Gás Natural</h4>
+                    <p class="card-text text-body-secondary mt-3">Cálculo de Tarifas de acesso à rede, escalões de consumo e fidelizações a 12 ou 24 meses.</p>
+                </div>
+                <div class="card-footer bg-transparent border-0 mt-2">
+                    <span class="btn btn-danger w-100 fw-bold shadow-sm rounded-pill py-2">Iniciar Simulação <i class="fa-solid fa-arrow-right ms-2"></i></span>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card h-100 shadow-sm text-center p-4 bg-body border border-opacity-10 border-secondary">
+            <div class="card-body">
+                <div class="d-inline-flex align-items-center justify-content-center bg-secondary bg-opacity-10 text-secondary rounded-circle mb-4 shadow-sm" style="width: 90px; height: 90px;">
+                    <i class="fa-solid fa-gears fs-1"></i>
+                </div>
+                <h4 class="card-title text-body fw-bold">Painel de Controlo</h4>
+                <p class="card-text text-body-secondary mt-3">Importação mágica de catálogos Excel, gestão de TARs e controlo absoluto dos preços da plataforma.</p>
+            </div>
+            <div class="card-footer bg-transparent border-0 mt-2">
+                <div class="row g-2">
+                    <div class="col-6">
+                        <a href="/config_ele" class="btn btn-outline-secondary w-100 fw-bold rounded-pill"><i class="fa-solid fa-bolt me-1"></i> Elétrica</a>
+                    </div>
+                    <div class="col-6">
+                        <a href="/config_gas" class="btn btn-outline-secondary w-100 fw-bold rounded-pill"><i class="fa-solid fa-fire me-1"></i> Gás</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

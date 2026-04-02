@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block content %}
+<form method="POST" class="bg-body-tertiary p-4 border rounded shadow-sm">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-body fw-bold"><i class="fa-solid fa-fire text-danger me-2"></i>Configuração de Gás Natural</h2>
+        <button type="submit" class="btn btn-success fw-bold px-4 shadow">
+            <i class="fa-solid fa-floppy-disk me-2"></i>GUARDAR ALTERAÇÕES
+        </button>
+    </div>
+
+    <ul class="nav nav-tabs" id="gasTab" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active fw-bold text-body" id="aba12-tab" data-bs-toggle="tab" data-bs-target="#aba12" type="button" role="tab">12 Meses</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link fw-bold text-body" id="aba24-tab" data-bs-toggle="tab" data-bs-target="#aba24" type="button" role="tab">24 Meses</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link fw-bold text-danger" id="abatar-tab" data-bs-toggle="tab" data-bs-target="#abatar" type="button" role="tab">TARs (Acesso à Rede)</button>
+        </li>
+    </ul>
+
+    <div class="tab-content bg-body p-4 border border-top-0 shadow-sm mt-0 rounded-bottom">
+        <div class="tab-pane fade show active" id="aba12" role="tabpanel">
+            <table class="table table-bordered text-center align-middle bg-body text-body">
+                <thead class="table-secondary">
+                    <tr><th>Produto</th><th>Base Opção 1 (< 0.5 GWh)</th><th>Base Opção 2 (≥ 0.5 GWh)</th></tr>
+                </thead>
+                <tbody>
+                    {% for i in range(9) %}
+                    <tr>
+                        <td class="fw-bold bg-body-secondary">{{ config.fixo_12m[i].nome }}</td>
+                        <td><input type="number" step="0.000001" name="f12_b1_{{i}}" class="form-control text-center bg-body text-body" value="{{ config.fixo_12m[i].b1 }}"></td>
+                        <td><input type="number" step="0.000001" name="f12_b2_{{i}}" class="form-control text-center bg-body text-body" value="{{ config.fixo_12m[i].b2 }}"></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="tab-pane fade" id="aba24" role="tabpanel">
+            <table class="table table-bordered text-center align-middle bg-body text-body">
+                <thead class="table-secondary">
+                    <tr><th>Produto</th><th>Base Opção 1 (< 0.5 GWh)</th><th>Base Opção 2 (≥ 0.5 GWh)</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="fw-bold bg-body-secondary">{{ config.fixo_24m[0].nome }}</td>
+                        <td><input type="number" step="0.000001" name="f24_b1_0" class="form-control text-center bg-body text-body" value="{{ config.fixo_24m[0].b1 }}"></td>
+                        <td><input type="number" step="0.000001" name="f24_b2_0" class="form-control text-center bg-body text-body" value="{{ config.fixo_24m[0].b2 }}"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="tab-pane fade" id="abatar" role="tabpanel">
+            <div class="row g-4">
+                {% for k, v in config.tar.items() %}
+                <div class="col-md-6">
+                    <div class="border border-secondary-subtle p-3 bg-body-secondary rounded shadow-sm">
+                        <h5 class="fw-bold text-body border-bottom border-secondary-subtle pb-2 mb-3">Escalão {{ k }}</h5>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="small text-body-secondary fw-bold">TAR Fixa (€/dia)</label>
+                                <input type="number" step="0.000001" name="tar_f_{{k}}" class="form-control bg-body text-body border-danger" value="{{v.fixo}}">
+                            </div>
+                            <div class="col-6">
+                                <label class="small text-body-secondary fw-bold">TAR Energia (€/kWh)</label>
+                                <input type="number" step="0.000001" name="tar_e_{{k}}" class="form-control bg-body text-body border-danger" value="{{v.en}}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}

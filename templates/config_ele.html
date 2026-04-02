@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+{% block content %}
+<form method="POST" id="configForm">
+    <div class="d-flex justify-content-between align-items-center mb-4 bg-body p-3 rounded shadow-sm border sticky-top" style="top: 1rem; z-index: 1000;">
+        <h3 class="text-primary mb-0 fw-bold"><i class="fa-solid fa-bolt me-2"></i>Configuração: Eletricidade B2B</h3>
+        <button type="submit" name="action" value="save" id="btnSave" class="btn btn-success fw-bold px-4 shadow-sm" onclick="showLoading(this, 'A GUARDAR...')">
+            <i class="fa-solid fa-floppy-disk me-2"></i>GUARDAR ALTERAÇÕES MANUAIS
+        </button>
+    </div>
+
+    <ul class="nav nav-tabs" id="eleTab" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active fw-bold text-white bg-primary" id="import-tab" data-bs-toggle="tab" data-bs-target="#tab-import" type="button" role="tab"><i class="fa-solid fa-file-excel me-2"></i>Importar do Excel</button>
+        </li>
+        <li class="nav-item"><button class="nav-link fw-bold text-body" id="pot-tab" data-bs-toggle="tab" data-bs-target="#tab-pot" type="button" role="tab">Potências (PC)</button></li>
+        <li class="nav-item"><button class="nav-link fw-bold text-body" id="btn-en-tab" data-bs-toggle="tab" data-bs-target="#tab-btn-en" type="button" role="tab">BTN Normal</button></li>
+        <li class="nav-item"><button class="nav-link fw-bold text-body" id="btn-ev-tab" data-bs-toggle="tab" data-bs-target="#tab-btn-ev" type="button" role="tab">BTN Verde</button></li>
+        <li class="nav-item"><button class="nav-link fw-bold text-body" id="bte-tab" data-bs-toggle="tab" data-bs-target="#tab-bte" type="button" role="tab">BTE Especial</button></li>
+        <li class="nav-item"><button class="nav-link text-danger fw-bold" id="tar-tab" data-bs-toggle="tab" data-bs-target="#tab-tar" type="button" role="tab">TARs (Redes)</button></li>
+    </ul>
+
+    <div class="tab-content bg-body-tertiary p-4 border border-top-0 shadow-sm mb-5 rounded-bottom">
+        
+        <div class="tab-pane fade show active" id="tab-import" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-4">
+                <h5 class="text-primary mb-0"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Construtor Automático de Base de Dados <small class="text-body-secondary">(*exceto TARs e Potências)</small></h5>
+                <a href="/download_template" class="btn btn-outline-primary btn-sm fw-bold shadow-sm">
+                    <i class="fa-solid fa-file-csv me-2"></i>Baixar Modelo Excel (CSV)
+                </a>
+            </div>
+            
+            <div class="card mb-4 border-info shadow-sm bg-body">
+                <div class="card-header bg-info bg-opacity-10 text-info-emphasis fw-bold d-flex align-items-center">
+                    <i class="fa-solid fa-table-columns me-2"></i> Estrutura Exigida (Copiar do Excel)
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered text-center align-middle mb-0 bg-body text-body" style="font-size: 0.85rem;">
+                            <thead class="table-secondary">
+                                <tr>
+                                    <th class="text-primary">Segmento<br><small class="text-body-secondary fw-normal">(BTN ou BTE)</small></th>
+                                    <th class="text-success">Energia<br><small class="text-body-secondary fw-normal">(EN ou EV)</small></th>
+                                    <th class="text-body">Nome do Produto<br><small class="text-body-secondary fw-normal">(Ex: Bihorario...)</small></th>
+                                    <th>P1<br><small class="text-body-secondary fw-normal">(Ponta / Simples)</small></th>
+                                    <th>P2<br><small class="text-body-secondary fw-normal">(Cheias)</small></th>
+                                    <th>P3<br><small class="text-body-secondary fw-normal">(Vazio)</small></th>
+                                    <th>P4<br><small class="text-body-secondary fw-normal">(S. Vazio - Só BTE)</small></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="text-primary fw-bold">BTN</td>
+                                    <td class="text-success fw-bold">EN</td>
+                                    <td class="text-start text-body">PF Bihorario Privado</td>
+                                    <td class="text-body">0,000000</td>
+                                    <td class="text-body">0,102795</td>
+                                    <td class="text-body">0,103823</td>
+                                    <td class="text-body-secondary">---</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-primary fw-bold">BTE</td>
+                                    <td class="text-success fw-bold">EV</td>
+                                    <td class="text-start text-body">Precio Fijo BTE Privado</td>
+                                    <td class="text-body">0,092620</td>
+                                    <td class="text-body">0,077560</td>
+                                    <td class="text-body">0,093111</td>
+                                    <td class="text-body">0,077943</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer bg-body-secondary text-body-secondary small">
+                    <ul class="mb-0 ps-3">
+                        <li>Não é obrigatório copiar os cabeçalhos. Selecione apenas as <strong>linhas com os dados</strong> das tarifas no seu ficheiro e faça <strong>Copiar (Ctrl+C)</strong>.</li>
+                        <li>Cole diretamente na caixa abaixo <strong>(Ctrl+V)</strong>. A plataforma detecta automaticamente as separações (, ou ; ou tabulação).</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <textarea name="csv_data" id="csv_input" rows="8" class="form-control mb-4 font-monospace shadow-sm border-primary bg-body text-body" style="white-space: pre; overflow-wrap: normal; overflow-x: scroll;" placeholder="Cole aqui as linhas copiadas do seu Excel..."></textarea>
+            
+            <div class="row g-3">
+                <div class="col-md-9">
+                    <button type="submit" name="action" value="import" id="btnImport" class="btn btn-primary btn-lg w-100 fw-bold shadow transition-colors" onclick="showLoading(this, 'A PROCESSAR CATÁLOGO...')">
+                        <i class="fa-solid fa-gears me-2"></i>PROCESSAR E IMPORTAR CATÁLOGO AGORA
+                    </button>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" name="action" value="clear" id="btnClear" class="btn btn-outline-danger btn-lg w-100 fw-bold shadow" onclick="return askClear(this);">
+                        <i class="fa-solid fa-trash-can me-2"></i>APAGAR DADOS
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="tab-pot" role="tabpanel">
+            <h5 class="text-primary border-bottom pb-2 mb-4"><i class="fa-solid fa-plug me-2"></i>BTN (≤ 41.40 kVA) - Preço de Catálogo (€/dia)</h5>
+            <div class="row g-2 mb-5">
+                {% for k, v in config.BTN.potencias.items() %}
+                <div class="col-md-2 text-center border border-secondary-subtle p-2 bg-body-secondary rounded shadow-sm hover-elevate">
+                    <label class="small fw-bold text-body">{{ k }} kVA</label>
+                    <input type="number" step="0.0001" name="pot_btn_{{ k }}" class="form-control text-center border-primary bg-body text-body" value="{{ v }}">
+                </div>
+                {% endfor %}
+            </div>
+            
+            <h5 class="text-primary border-bottom pb-2 mb-3"><i class="fa-solid fa-industry me-2"></i>BTE (≥ 41.41 kW) - Potência (€/kW dia)</h5>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="small fw-bold text-body">Horas de Ponta</label>
+                    <input type="number" step="0.0001" name="bte_pot_ponta" class="form-control border-primary bg-body text-body" value="{{ config.BTE.pot_ponta }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="small fw-bold text-body">Potência Contratada</label>
+                    <input type="number" step="0.0001" name="bte_pot_cont" class="form-control border-primary bg-body text-body" value="{{ config.BTE.pot_contratada }}">
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="tab-btn-en" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-end border-bottom pb-2 mb-3">
+                <h5 class="text-primary mb-0"><i class="fa-solid fa-bolt text-warning me-2"></i>BTN (≤ 41.40 kVA) Energia Normal</h5>
+                <span class="badge bg-danger shadow-sm">Preço BASE (A TAR será somada no simulador)</span>
+            </div>
+            {% if config.BTN.EN.produtos|length == 0 %}
+                <div class="alert alert-secondary border border-warning text-center p-4 shadow-sm rounded-4 bg-body">
+                    <i class="fa-solid fa-folder-open fa-3x text-warning mb-3 opacity-75"></i>
+                    <h5 class="fw-bold text-body">Sem Produtos Cadastrados</h5>
+                    <p class="text-body-secondary mb-0">Vá ao separador <a href="#" onclick="document.getElementById('import-tab').click();" class="text-primary fw-bold text-decoration-none">Importar do Excel</a> para carregar a base de dados.</p>
+                </div>
+            {% else %}
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered table-hover text-center align-middle bg-body text-body">
+                    <thead class="table-dark">
+                        <tr><th style="width: 8%">Ordem</th><th style="width: 32%">Nome do Produto</th><th>P1 (Simples/Ponta)</th><th>P2 (Cheias)</th><th>P3 (Vazio)</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for p in config.BTN.EN.produtos %}
+                        <tr>
+                            <td><input type="number" name="btn_en_ordem_{{ loop.index0 }}" class="form-control form-control-sm text-center fw-bold text-primary bg-body" value="{{ p.ordem }}"></td>
+                            <td><input type="text" name="btn_en_nome_{{ loop.index0 }}" class="form-control form-control-sm fw-bold bg-body-secondary text-body border-0" value="{{ p.nome }}"></td>
+                            <td><input type="number" step="0.000001" name="btn_en_p1_{{ loop.index0 }}" class="form-control form-control-sm text-center bg-body text-body" value="{{ p.p1 }}"></td>
+                            <td><input type="number" step="0.000001" name="btn_en_p2_{{ loop.index0 }}" class="form-control form-control-sm text-center bg-body text-body" value="{{ p.p2 }}"></td>
+                            <td><input type="number" step="0.000001" name="btn_en_p3_{{ loop.index0 }}" class="form-control form-control-sm text-center bg-body text-body" value="{{ p.p3 }}"></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="tab-pane fade" id="tab-btn-ev" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-end border-bottom pb-2 mb-3">
+                <h5 class="text-success mb-0"><i class="fa-solid fa-leaf text-success me-2"></i>BTN (≤ 41.40 kVA) Energia Verde</h5>
+                <span class="badge bg-success shadow-sm">Preço FINAL (A TAR já está embutida)</span>
+            </div>
+            {% if config.BTN.EV.produtos|length == 0 %}
+                <div class="alert alert-secondary border border-success text-center p-4 shadow-sm rounded-4 bg-body">
+                    <i class="fa-solid fa-leaf fa-3x text-success mb-3 opacity-75"></i>
+                    <h5 class="fw-bold text-body">Sem Produtos Verdes Cadastrados</h5>
+                    <p class="text-body-secondary mb-0">Vá ao separador <a href="#" onclick="document.getElementById('import-tab').click();" class="text-primary fw-bold text-decoration-none">Importar do Excel</a> para carregar a base de dados.</p>
+                </div>
+            {% else %}
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered table-hover text-center align-middle bg-body text-body">
+                    <thead class="table-success align-middle">
+                        <tr><th style="width: 8%">Ordem</th><th style="width: 32%">Nome do Produto</th><th>P1 (Simples/Ponta)</th><th>P2 (Cheias)</th><th>P3 (Vazio)</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for p in config.BTN.EV.produtos %}
+                        <tr>
+                            <td><input type="number" name="btn_ev_ordem_{{ loop.index0 }}" class="form-control form-control-sm text-center fw-bold text-success bg-body" value="{{ p.ordem }}"></td>
+                            <td><input type="text" name="btn_ev_nome_{{ loop.index0 }}" class="form-control form-control-sm fw-bold bg-body-secondary text-body border-0" value="{{ p.nome }}"></td>
+                            <td><input type="number" step="0.000001" name="btn_ev_p1_{{ loop.index0 }}" class="form-control form-control-sm text-center bg-body text-body" value="{{ p.p1 }}"></td>
+                            <td><input type="number" step="0.000001" name="btn_ev_p2_{{ loop.index0 }}" class="form-control form-control-sm text-center bg-body text-body" value="{{ p.p2 }}"></td>
+                            <td><input type="number" step="0.000001" name="btn_ev_p3_{{ loop.index0 }}" class="form-control form-control-sm text-center bg-body text-body" value="{{ p.p3 }}"></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="tab-pane fade" id="tab-bte" role="tabpanel">
+            <h5 class="text-primary border-bottom pb-2 mb-3"><i class="fa-solid fa-building me-2"></i>BTE Especial (≥ 41.41 kW) - Tetra-Horário</h5>
+            
+            <h6 class="fw-bold mt-4 text-body"><i class="fa-solid fa-bolt text-warning me-1"></i> Energia Normal (Soma TAR)</h6>
+            {% if config.BTE.EN.produtos|length == 0 %}
+                <div class="alert alert-secondary border border-secondary-subtle text-center p-3 shadow-sm rounded-3 bg-body text-body">Ainda não existem produtos BTE Normal.</div>
+            {% else %}
+            <div class="table-responsive mb-4">
+                <table class="table table-sm table-bordered table-hover text-center align-middle bg-body text-body">
+                    <thead class="table-dark text-white">
+                        <tr><th style="width: 8%">Ordem</th><th style="width: 27%">Nome do Produto</th><th>P1 (Ponta)</th><th>P2 (Cheias)</th><th>P3 (Vazio)</th><th>P4 (S. Vazio)</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for p in config.BTE.EN.produtos %}
+                        <tr>
+                            <td><input type="number" name="bte_en_ordem_{{ loop.index0 }}" class="form-control form-control-sm text-center fw-bold text-primary bg-body" value="{{ p.ordem }}"></td>
+                            <td><input type="text" name="bte_en_nome_{{ loop.index0 }}" class="form-control form-control-sm fw-bold bg-body-secondary text-body border-0" value="{{ p.nome }}"></td>
+                            <td><input type="number" step="0.000001" name="bte_en_p1_{{ loop.index0 }}" class="form-control form-control-sm text-center bg-body text-body" value="{{ p.p1 }}"></td>
+                            <td><input type="number" step="0.000001" name="bte_en_p2_{{ loop.index0 }}" class="form-control form-control-sm text-center bg-body text-body" value="{{ p.p2 }}"></td>
+                            <td><input type="number" step="0.000001" name="bte_en_p3_{{ loop.index0 }}" class="form-control form-control-sm text-center bg-body text-body" value="{{ p.p3 }}"></td>
+                            <td><input type="number" step="0.000001" name="bte_en_p4_{{ loop.index0 }}" class="form-control form-control-sm text-center bg-body text-body" value="{{ p.p4 }}"></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+            
+            <h6 class="fw-bold text-success mt-4"><i class="fa-solid fa-leaf me-1"></i> Energia Verde (TAR Embutida)</h6>
+            {% if config.BTE.EV.produtos|length == 0 %}
+                <div class="alert alert-secondary border border-success text-center p-3 shadow-sm rounded-3 bg-body text-body">Ainda não existem produtos BTE Verde.</div>
+            {% else %}
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered table-hover text-center align-middle bg-body text-body">
+                    <thead class="table-success text-dark">
+                        <tr><th style="width: 8%">Ordem</th><th style="width: 27%">Nome do Produto</th><th>P1 (Ponta)</th><th>P2 (Cheias)</th><th>P3 (Vazio)</th><th>P4 (S. Vazio)</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for p in config.BTE.EV.produtos %}
+                        <tr>
+                            <td><input type="number" name="bte_ev_ordem_{{ loop.index0 }}" class="form-control form-control-sm text-center fw-bold text-success bg-body" value="{{ p.ordem }}"></td>
+                            <td><input type="text" name="bte_ev_nome_{{ loop.index0 }}" class="form-control form-control-sm fw-bold bg-body-secondary text-body border-0" value="{{ p.nome }}"></td>
+                            <td><input type="number" step="0.000001" name="bte_ev_p1_{{ loop.index0 }}" class="form-control form-control-sm text-center bg-body text-body" value="{{ p.p1 }}"></td>
+                            <td><input type="number" step="0.000001" name="bte_ev_p2_{{ loop.index0 }}" class="form-control form-control-sm text-center bg-body text-body" value="{{ p.p2 }}"></td>
+                            <td><input type="number" step="0.000001" name="bte_ev_p3_{{ loop.index0 }}" class="form-control form-control-sm text-center bg-body text-body" value="{{ p.p3 }}"></td>
+                            <td><input type="number" step="0.000001" name="bte_ev_p4_{{ loop.index0 }}" class="form-control form-control-sm text-center bg-body text-body" value="{{ p.p4 }}"></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="tab-pane fade" id="tab-tar" role="tabpanel">
+            <div class="alert alert-danger fw-bold shadow-sm mb-4">
+                <i class="fa-solid fa-triangle-exclamation me-2"></i> As TARs configuradas aqui apenas serão somadas aos produtos de Energia Normal (EN). A Energia Verde (EV) ignora estes valores.
+            </div>
+            
+            <div class="row g-4">
+                <div class="col-md-7 border-end">
+                    <h6 class="fw-bold mb-3 text-body">TAR BTN (≤ 41.40 kVA)</h6>
+                    <table class="table table-sm table-bordered text-center align-middle shadow-sm bg-body text-body">
+                        <thead class="table-secondary"><tr><th>Ciclo</th><th>P1 (Ponta)</th><th>P2 (Cheias)</th><th>P3 (Vazio)</th></tr></thead>
+                        <tbody>
+                            <tr>
+                                <td class="fw-bold bg-body-secondary">Simples</td>
+                                <td><input type="number" step="0.000001" name="tar_btn_SIM_p1" class="form-control text-center bg-body text-body" value="{{ config.BTN.EN.tar.SIM.p1 }}"></td>
+                                <td class="bg-body-secondary text-body-secondary">---</td>
+                                <td class="bg-body-secondary text-body-secondary">---</td>
+                            </tr>
+                            <tr>
+                                <td class="fw-bold bg-body-secondary">Bi-Horário</td>
+                                <td class="bg-body-secondary text-body-secondary">---</td>
+                                <td><input type="number" step="0.000001" name="tar_btn_BIH_p2" class="form-control text-center bg-body text-body" value="{{ config.BTN.EN.tar.BIH.p2 }}"></td>
+                                <td><input type="number" step="0.000001" name="tar_btn_BIH_p3" class="form-control text-center bg-body text-body" value="{{ config.BTN.EN.tar.BIH.p3 }}"></td>
+                            </tr>
+                            <tr>
+                                <td class="fw-bold bg-body-secondary">Tri-Horário</td>
+                                <td><input type="number" step="0.000001" name="tar_btn_TRI_p1" class="form-control text-center bg-body text-body" value="{{ config.BTN.EN.tar.TRI.p1 }}"></td>
+                                <td><input type="number" step="0.000001" name="tar_btn_TRI_p2" class="form-control text-center bg-body text-body" value="{{ config.BTN.EN.tar.TRI.p2 }}"></td>
+                                <td><input type="number" step="0.000001" name="tar_btn_TRI_p3" class="form-control text-center bg-body text-body" value="{{ config.BTN.EN.tar.TRI.p3 }}"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="col-md-5">
+                    <h6 class="fw-bold mb-3 text-body">TAR BTE (≥ 41.41 kW)</h6>
+                    <table class="table table-sm table-bordered text-center align-middle shadow-sm bg-body text-body">
+                        <thead class="table-secondary"><tr><th>Período</th><th>Valor TAR (€)</th></tr></thead>
+                        <tbody>
+                            <tr><td class="fw-bold bg-body-secondary">P1 (Ponta)</td><td><input type="number" step="0.000001" name="tar_bte_p1" class="form-control text-center bg-body text-body" value="{{ config.BTE.EN.tar.TETRA.p1 }}"></td></tr>
+                            <tr><td class="fw-bold bg-body-secondary">P2 (Cheias)</td><td><input type="number" step="0.000001" name="tar_bte_p2" class="form-control text-center bg-body text-body" value="{{ config.BTE.EN.tar.TETRA.p2 }}"></td></tr>
+                            <tr><td class="fw-bold bg-body-secondary">P3 (Vazio)</td><td><input type="number" step="0.000001" name="tar_bte_p3" class="form-control text-center bg-body text-body" value="{{ config.BTE.EN.tar.TETRA.p3 }}"></td></tr>
+                            <tr><td class="fw-bold text-primary bg-body-secondary">P4 (S. Vazio)</td><td><input type="number" step="0.000001" name="tar_bte_p4" class="form-control text-center bg-body text-body" value="{{ config.BTE.EN.tar.TETRA.p4 }}"></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<style>
+    .transition-colors { transition: background-color 0.3s, border-color 0.3s; }
+    .hover-elevate { transition: transform 0.2s; }
+    .hover-elevate:hover { transform: translateY(-3px); }
+</style>
+
+<script>
+    function showLoading(btn, text) {
+        setTimeout(function() {
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' + text;
+            btn.classList.add('disabled');
+            
+            if(btn.id === 'btnSave') {
+                document.getElementById('btnImport').style.opacity = '0.5';
+                document.getElementById('btnClear').style.opacity = '0.5';
+            }
+            if(btn.id === 'btnImport' || btn.id === 'btnClear') {
+                document.getElementById('btnSave').style.opacity = '0.5';
+            }
+        }, 50);
+    }
+
+    function askClear(btn) {
+        if(confirm('ATENÇÃO: Vai apagar todos os produtos BTE e BTN atuais para importar uma nova lista. \n\nFique descansado que as TARs e Potências serão mantidas!\n\nDeseja continuar?')) {
+            showLoading(btn, 'A APAGAR...');
+            return true;
+        }
+        return false;
+    }
+
+    document.getElementById('csv_input').addEventListener('input', function() {
+        const btn = document.getElementById('btnImport');
+        if(this.value.trim().length > 15) {
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-success');
+        } else {
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-primary');
+        }
+    });
+</script>
+{% endblock %}
