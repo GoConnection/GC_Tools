@@ -1,12 +1,56 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
-import json
 import os
+import secrets
+import sys
+
+from flask import (
+    Flask,
+    Response,
+    flash,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    session,
+    url_for,
+)
+
+from auth import register_access_control
+from db_config import (
+    DatabaseConfigError,
+    clear_electricity_products_only,
+    fetch_full_config,
+    persist_imported_products,
+    save_electricity_config,
+    save_gas_config,
+)
+from keyvault import KeyVaultConfigurationError, apply_key_vault_secrets_to_app
+from msal_auth import (
+    acquire_token_by_auth_code,
+    email_from_id_token_claims,
+    get_authorization_url,
+    get_msal_redirect_uri,
+    is_email_in_gctools_admins,
+)
 
 app = Flask(__name__)
 app.secret_key = "energia_mother_v50_excel_importer"
 
-CONFIG_FILE = 'dados_v50.json'
-ADMIN_PASSWORD = "admin123"
+try:
+    apply_key_vault_secrets_to_app(app)
+except KeyVaultConfigurationError as e:
+    sys.stderr.write(f"Key Vault configuration error: {e}\n")
+    raise SystemExit(1) from e
+
+if os.environ.get("GCTOOLS_BEARER_TOKEN"):
+    app.config["GCTOOLS_BEARER_TOKEN"] = os.environ["GCTOOLS_BEARER_TOKEN"].strip()
+if os.environ.get("MSAL_CLIENT_ID"):
+    app.config["MSAL_CLIENT_ID"] = os.environ["MSAL_CLIENT_ID"].strip()
+if os.environ.get("MSAL_CLIENT_SECRET"):
+    app.config["MSAL_CLIENT_SECRET"] = os.environ["MSAL_CLIENT_SECRET"].strip()
+if os.environ.get("MSAL_TENANT_ID"):
+    app.config["MSAL_TENANT_ID"] = os.environ["MSAL_TENANT_ID"].strip()
+
+register_access_control(app)
 
 def safe_float(val, default=0.0):
     try:
@@ -20,66 +64,103 @@ def safe_int(val, default=0):
         return int(val)
     except: return default
 
-def init_config():
-    """Gera o catálogo limpo."""
-    dados_base = {
-        "GN_CONFIG": {
-            "fixo_12m": [{"nome": f"{i}%", "b1": round(0.070615-(i*0.000706), 6), "b2": round(0.070615-(i*0.000706), 6)} for i in range(9)],
-            "fixo_24m": [{"nome": "4% (Platinium)", "b1": 0.067790, "b2": 0.067790}],
-            "tar": {
-                "1": {"fixo": 0.0156, "en": 0.044112}, "2": {"fixo": 0.0497, "en": 0.03902}, 
-                "3": {"fixo": 0.0827, "en": 0.036071}, "4": {"fixo": 0.1364, "en": 0.034789}
-            }
-        },
-        "EE_CONFIG": {
-            "BTN": {
-                "potencias": {
-                    "1.15": 0.1633, "2.3": 0.1873, "3.45": 0.2199, "4.6": 0.2524, 
-                    "5.75": 0.2850, "6.9": 0.3175, "10.35": 0.4151, "13.8": 0.5126, 
-                    "17.25": 0.6101, "20.7": 0.7077, "27.6": 0.9029, "34.5": 1.0980, "41.40": 1.2931
-                },
-                "EN": { "produtos": [], "tar": {"SIM": {"p1": 0.0607, "p2": 0, "p3": 0, "p4": 0}, "BIH": {"p1": 0.0835, "p2": 0.0158, "p3": 0, "p4": 0}, "TRI": {"p1": 0.2452, "p2": 0.0412, "p3": 0.0158, "p4": 0}} },
-                "EV": { "produtos": [], "tar": {"SIM": {"p1": 0, "p2": 0, "p3": 0, "p4": 0}, "BIH": {"p1": 0, "p2": 0, "p3": 0, "p4": 0}, "TRI": {"p1": 0, "p2": 0, "p3": 0, "p4": 0}} }
-            },
-            "BTE": {
-                "pot_ponta": 0.5521, "pot_contratada": 0.1272,
-                "EN": { "produtos": [], "tar": {"TETRA": {"p1": 0.0397, "p2": 0.0353, "p3": 0.0285, "p4": 0.0237}} },
-                "EV": { "produtos": [], "tar": {"TETRA": {"p1": 0, "p2": 0, "p3": 0, "p4": 0}} }
-            }
-        }
-    }
-    with open(CONFIG_FILE, 'w') as f: json.dump(dados_base, f, indent=4)
-    return dados_base
-
 def get_config():
-    if not os.path.exists(CONFIG_FILE): cfg = init_config()
-    else:
-        with open(CONFIG_FILE, 'r') as f: cfg = json.load(f)
-    
+    cfg = fetch_full_config()
     try:
         for seg in ['BTN', 'BTE']:
             for ee in ['EN', 'EV']:
                 if 'produtos' in cfg['EE_CONFIG'][seg][ee]:
                     cfg['EE_CONFIG'][seg][ee]['produtos'].sort(key=lambda x: safe_int(x.get('ordem', 999)))
-    except: pass
+    except Exception:
+        pass
     return cfg
 
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        if request.form.get('password') == ADMIN_PASSWORD:
-            session['admin_logged_in'] = True
-            flash('Sessão de Administrador iniciada com sucesso!', 'success')
-            return redirect(request.args.get('next') or url_for('index'))
-        else:
-            flash('Palavra-passe incorreta.', 'danger')
-    return render_template('login.html')
 
-@app.route('/logout')
+def _apply_electricity_tar_from_form(cfg):
+    """Update BTN/BTE EN TAR values from posted fields only (omitted fields keep DB-loaded values)."""
+    t_en = cfg['BTN']['EN']['tar']
+    v = request.form.get("tar_btn_SIM_p1")
+    if v is not None and str(v).strip() != '':
+        t_en['SIM']['p1'] = safe_float(v)
+    for fk, tk in [("tar_btn_BIH_p2", "p2"), ("tar_btn_BIH_p3", "p3")]:
+        v = request.form.get(fk)
+        if v is not None and str(v).strip() != '':
+            t_en['BIH'][tk] = safe_float(v)
+    for fk, tk in [("tar_btn_TRI_p1", "p1"), ("tar_btn_TRI_p2", "p2"), ("tar_btn_TRI_p3", "p3")]:
+        v = request.form.get(fk)
+        if v is not None and str(v).strip() != '':
+            t_en['TRI'][tk] = safe_float(v)
+    tet = cfg['BTE']['EN']['tar']['TETRA']
+    for i in range(1, 5):
+        fk = f"tar_bte_p{i}"
+        v = request.form.get(fk)
+        if v is not None and str(v).strip() != '':
+            tet[f'p{i}'] = safe_float(v)
+
+
+@app.route("/login")
+def login():
+    if session.get("admin_logged_in"):
+        return redirect(url_for("index"))
+    state = secrets.token_urlsafe(32)
+    session["msal_state"] = state
+    redirect_uri = get_msal_redirect_uri()
+    auth_url = get_authorization_url(app, redirect_uri, state)
+    return redirect(auth_url)
+
+
+@app.route("/auth/callback")
+def auth_callback():
+    if request.args.get("error"):
+        return Response(
+            "Microsoft sign-in was cancelled or denied.",
+            status=403,
+            mimetype="text/plain",
+        )
+    state = request.args.get("state")
+    if not state or state != session.get("msal_state"):
+        return Response(
+            "Invalid sign-in state. Open /login again.",
+            status=403,
+            mimetype="text/plain",
+        )
+    session.pop("msal_state", None)
+    code = request.args.get("code")
+    if not code:
+        return Response(
+            "Missing authorization code.",
+            status=403,
+            mimetype="text/plain",
+        )
+    redirect_uri = get_msal_redirect_uri()
+    result = acquire_token_by_auth_code(app, code, redirect_uri)
+    email = email_from_id_token_claims(result)
+    if not email:
+        return Response(
+            "Could not read email from the Microsoft account (id token).",
+            status=403,
+            mimetype="text/plain",
+        )
+    if not is_email_in_gctools_admins(email):
+        return Response(
+            "This account is not in vw_GCTools_Admins and cannot use admin features.",
+            status=403,
+            mimetype="text/plain",
+        )
+    session["admin_logged_in"] = True
+    session["admin_email"] = email
+    flash("Sessão iniciada.", "success")
+    return redirect(url_for("index"))
+
+
+@app.route("/logout")
 def logout():
-    session.pop('admin_logged_in', None)
-    flash('Sessão terminada.', 'info')
-    return redirect(url_for('index'))
+    session.pop("admin_logged_in", None)
+    session.pop("admin_email", None)
+    session.pop("msal_state", None)
+    flash("Sessão terminada.", "info")
+    return redirect(url_for("login"))
+
 
 @app.route('/')
 def index(): return render_template('index.html')
@@ -176,10 +257,6 @@ def calc_ele():
 
 @app.route('/config_ele', methods=['GET', 'POST'])
 def config_ele():
-    if not session.get('admin_logged_in'):
-        flash('Acesso restrito.', 'warning')
-        return redirect(url_for('login', next=request.url))
-
     full = get_config()
     cfg = full["EE_CONFIG"]
     
@@ -187,42 +264,34 @@ def config_ele():
         action = request.form.get('action')
         
         if action == 'clear':
-            full["EE_CONFIG"]["BTN"]["EN"]["produtos"] = []
-            full["EE_CONFIG"]["BTN"]["EV"]["produtos"] = []
-            full["EE_CONFIG"]["BTE"]["EN"]["produtos"] = []
-            full["EE_CONFIG"]["BTE"]["EV"]["produtos"] = []
-            
-            with open(CONFIG_FILE, 'w') as f: json.dump(full, f, indent=4)
+            clear_electricity_products_only()
             flash('Base de dados de produtos apagada com sucesso! As TARs e Potências foram mantidas e estão seguras.', 'info')
             return redirect(url_for('config_ele'))
 
         elif action == 'import':
             csv_data = request.form.get('csv_data')
             if csv_data:
-                full["EE_CONFIG"]["BTN"]["EN"]["produtos"] = []
-                full["EE_CONFIG"]["BTN"]["EV"]["produtos"] = []
-                full["EE_CONFIG"]["BTE"]["EN"]["produtos"] = []
-                full["EE_CONFIG"]["BTE"]["EV"]["produtos"] = []
-                
                 linhas = csv_data.strip().split('\n')
                 sucessos = 0
-                
+                imported = []
+                counts = {}
+
                 for linha in linhas:
                     linha = linha.strip()
                     if not linha: continue
-                    
+
                     if '\t' in linha: partes = linha.split('\t')
                     elif ';' in linha: partes = linha.split(';')
                     else: partes = linha.split(',')
-                    
+
                     partes = [p.strip() for p in partes]
-                    
+
                     seg = None; ee = None; nome = ""; precos = []
-                    
+
                     for p in partes:
                         p_up = p.upper().replace('"', '')
                         p_limpo = p.replace('"', '').strip()
-                        
+
                         if p_up in ['BTN', 'BTE'] and not seg: seg = p_up
                         elif p_up in ['EN', 'EV'] and not ee: ee = p_up
                         elif seg and ee and not nome and not p_limpo.replace(',','').replace('.','').replace('-','').isdigit():
@@ -230,16 +299,16 @@ def config_ele():
                         elif nome:
                             try: precos.append(float(p_limpo.replace(',', '.')))
                             except: pass
-                                
+
                     if seg and ee and nome:
                         p1 = precos[0] if len(precos) > 0 else 0
                         p2 = precos[1] if len(precos) > 1 else 0
                         p3 = precos[2] if len(precos) > 2 else 0
                         p4 = precos[3] if len(precos) > 3 else 0
-                        
+
                         tipo = "SIM"
                         nome_lower = nome.lower()
-                        
+
                         if seg == 'BTE':
                             tipo = "TETRA"
                         else:
@@ -250,15 +319,17 @@ def config_ele():
                                 tipo = "TRI"
                             else:
                                 tipo = "SIM"
-                                
+
+                        key = (seg, ee)
+                        counts[key] = counts.get(key, 0) + 1
                         prod = {
-                            "ordem": len(full["EE_CONFIG"][seg][ee]["produtos"]) + 1,
+                            "ordem": counts[key],
                             "nome": nome, "tipo": tipo, "p1": p1, "p2": p2, "p3": p3, "p4": p4
                         }
-                        full["EE_CONFIG"][seg][ee]["produtos"].append(prod)
+                        imported.append((seg, ee, prod))
                         sucessos += 1
-                
-                with open(CONFIG_FILE, 'w') as f: json.dump(full, f, indent=4)
+
+                persist_imported_products(imported)
                 flash(f'Fantástico! Importados {sucessos} Produtos do Excel com sucesso.', 'success')
                 return redirect(url_for('config_ele'))
 
@@ -282,22 +353,12 @@ def config_ele():
             cfg['BTE']['pot_ponta'] = safe_float(request.form.get("bte_pot_ponta"))
             cfg['BTE']['pot_contratada'] = safe_float(request.form.get("bte_pot_cont"))
 
-            cfg['BTN']['EN']['tar']['SIM']['p1'] = safe_float(request.form.get("tar_btn_SIM_p1"))
-            cfg['BTN']['EN']['tar']['BIH']['p1'] = safe_float(request.form.get("tar_btn_BIH_p1"))
-            cfg['BTN']['EN']['tar']['BIH']['p2'] = safe_float(request.form.get("tar_btn_BIH_p2"))
-            cfg['BTN']['EN']['tar']['TRI']['p1'] = safe_float(request.form.get("tar_btn_TRI_p1"))
-            cfg['BTN']['EN']['tar']['TRI']['p2'] = safe_float(request.form.get("tar_btn_TRI_p2"))
-            cfg['BTN']['EN']['tar']['TRI']['p3'] = safe_float(request.form.get("tar_btn_TRI_p3"))
-            
-            cfg['BTE']['EN']['tar']['TETRA']['p1'] = safe_float(request.form.get("tar_bte_p1"))
-            cfg['BTE']['EN']['tar']['TETRA']['p2'] = safe_float(request.form.get("tar_bte_p2"))
-            cfg['BTE']['EN']['tar']['TETRA']['p3'] = safe_float(request.form.get("tar_bte_p3"))
-            cfg['BTE']['EN']['tar']['TETRA']['p4'] = safe_float(request.form.get("tar_bte_p4"))
+            _apply_electricity_tar_from_form(cfg)
 
             for k_seg in ["BTN", "BTE"]:
                 for k_ee in ["EN", "EV"]: full["EE_CONFIG"][k_seg][k_ee]['produtos'].sort(key=lambda x: safe_int(x.get('ordem', 999)))
 
-            with open(CONFIG_FILE, 'w') as f: json.dump(full, f, indent=4)
+            save_electricity_config(full["EE_CONFIG"])
             flash('Configurações alteradas guardadas com sucesso!', 'success')
             return redirect(url_for('config_ele'))
     
@@ -305,7 +366,6 @@ def config_ele():
 
 @app.route('/config_gas', methods=['GET', 'POST'])
 def config_gas():
-    if not session.get('admin_logged_in'): return redirect(url_for('login', next=request.url))
     full = get_config()
     cfg = full["GN_CONFIG"]
     if request.method == 'POST':
@@ -317,7 +377,7 @@ def config_gas():
         for k in cfg['tar']:
             cfg['tar'][k]['fixo'] = safe_float(request.form.get(f"tar_f_{k}"))
             cfg['tar'][k]['en'] = safe_float(request.form.get(f"tar_e_{k}"))
-        with open(CONFIG_FILE, 'w') as f: json.dump(full, f, indent=4)
+        save_gas_config(full["GN_CONFIG"])
         flash('Gás atualizado!', 'success')
         return redirect(url_for('config_gas'))
     return render_template('config_gas.html', config=cfg)
@@ -325,10 +385,6 @@ def config_gas():
 # NOVA ROTA DE DOWNLOAD DO FICHEIRO CSV
 @app.route('/download_template')
 def download_template():
-    if not session.get('admin_logged_in'):
-        flash('Acesso restrito.', 'warning')
-        return redirect(url_for('login'))
-    
     # ATENÇÃO: Garante que o ficheiro com este nome exato está na mesma pasta do app.py
     try:
         return send_file('energia.csv', as_attachment=True)
@@ -337,5 +393,10 @@ def download_template():
         return redirect(url_for('config_ele'))
 
 if __name__ == '__main__':
-    init_config()
+    with app.app_context():
+        try:
+            get_config()
+        except DatabaseConfigError as e:
+            sys.stderr.write(f"Database configuration error: {e}\n")
+            raise SystemExit(1) from e
     app.run(port=5000, debug=True)

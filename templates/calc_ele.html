@@ -3,6 +3,7 @@
 <h2 class="mb-4 text-primary">Simulador de Eletricidade B2B</h2>
 
 <form method="POST" id="eleForm" class="bg-body-tertiary p-4 border rounded shadow-sm">
+    {% if agent_token %}<input type="hidden" name="token" value="{{ agent_token }}">{% endif %}
     <div class="row g-3 mb-4 border-bottom pb-3 bg-body-secondary p-2 rounded align-items-center">
         <div class="col-md-3">
             <label class="fw-bold text-body">Segmento (Potência)</label>

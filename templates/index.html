@@ -10,7 +10,7 @@
 <div class="row g-4 justify-content-center">
     
     <div class="col-md-4">
-        <a href="/eletricidade" class="text-decoration-none">
+        <a href="{% if agent_token %}{{ url_for('calc_ele') }}?token={{ agent_token|urlencode }}{% else %}{{ url_for('calc_ele') }}{% endif %}" class="text-decoration-none">
             <div class="card h-100 shadow-sm card-hover text-center p-4 bg-body border border-opacity-10 border-primary">
                 <div class="card-body">
                     <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-10 text-primary rounded-circle mb-4 shadow-sm" style="width: 90px; height: 90px;">
@@ -27,7 +27,7 @@
     </div>
 
     <div class="col-md-4">
-        <a href="/gas" class="text-decoration-none">
+        <a href="{% if agent_token %}{{ url_for('calc_gas') }}?token={{ agent_token|urlencode }}{% else %}{{ url_for('calc_gas') }}{% endif %}" class="text-decoration-none">
             <div class="card h-100 shadow-sm card-hover text-center p-4 bg-body border border-opacity-10 border-danger">
                 <div class="card-body">
                     <div class="d-inline-flex align-items-center justify-content-center bg-danger bg-opacity-10 text-danger rounded-circle mb-4 shadow-sm" style="width: 90px; height: 90px;">
@@ -43,6 +43,7 @@
         </a>
     </div>
 
+    {% if is_admin %}
     <div class="col-md-4">
         <div class="card h-100 shadow-sm text-center p-4 bg-body border border-opacity-10 border-secondary">
             <div class="card-body">
@@ -64,5 +65,6 @@
             </div>
         </div>
     </div>
+    {% endif %}
 </div>
 {% endblock %}
