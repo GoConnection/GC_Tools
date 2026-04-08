@@ -14,12 +14,33 @@ Two-level access:
 from __future__ import annotations
 
 import hmac
+import os
 
 from flask import Flask, Response, g, request, session
 
 _CALC_PATHS = frozenset({"/", "/eletricidade", "/gas"})
 _ADMIN_PATHS = frozenset({"/config_ele", "/config_gas", "/download_template"})
 _AUTH_EXEMPT_PATHS = frozenset({"/login", "/logout", "/auth/callback"})
+
+
+def _effective_route_path() -> str:
+    """
+    Path as seen by Flask route rules.
+
+    Under IIS with a virtual directory (e.g. /GC_Tools), some setups pass PATH_INFO
+    including that prefix (/GC_Tools/login). Exempt paths and calculators are
+    registered as /login, /, etc., so we strip GCTOOLS_PATH_PREFIX when set
+    (e.g. /GC_Tools) to match.
+    """
+    path = request.path or "/"
+    prefix = (os.environ.get("GCTOOLS_PATH_PREFIX") or "").strip().rstrip("/")
+    if not prefix:
+        return path
+    if path == prefix or path == prefix + "/":
+        return "/"
+    if path.startswith(prefix + "/"):
+        return path[len(prefix) :] or "/"
+    return path
 
 
 def _agent_token_config(app: Flask) -> str | None:
@@ -45,7 +66,7 @@ def register_access_control(app: Flask) -> None:
         if request.method == "OPTIONS":
             return None
 
-        path = request.path
+        path = _effective_route_path()
 
         if path.startswith("/static/"):
             return None
