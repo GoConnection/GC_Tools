@@ -22,6 +22,7 @@ jobs:
         shell: powershell
         run: |
           robocopy . "C:\inetpub\wwwroot\GC_Tools" /E /R:2 /W:2 /XD ".git" ".github" "__pycache__" /XF "*.pyc"
+          if ($LASTEXITCODE -le 7) { exit 0 }
           $code = $LASTEXITCODE
           if ($code -gt 7) {
             Write-Error "Robocopy failed with exit code $code"
