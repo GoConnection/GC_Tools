@@ -1,0 +1,35 @@
+name: Deploy to IIS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Python dependencies
+        shell: powershell
+        run: |
+          & "C:\Program Files\Python312\python.exe" -m pip install -r requirements.txt
+
+      - name: Deploy files with robocopy
+        shell: powershell
+        run: |
+          robocopy . "C:\inetpub\wwwroot\GC_Tools" /E /R:2 /W:2 /XD ".git" ".github" "__pycache__" /XF "*.pyc"
+          $code = $LASTEXITCODE
+          if ($code -gt 7) {
+            Write-Error "Robocopy failed with exit code $code"
+            exit $code
+          }
+          Write-Host "Robocopy completed with acceptable exit code $code"
+
+      - name: Recycle IIS app pool
+        shell: powershell
+        run: |
+          & "$env:WINDIR\System32\inetsrv\appcmd.exe" recycle apppool /apppool.name:"GC_Tools"

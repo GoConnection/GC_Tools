@@ -4,3 +4,4 @@ azure-identity>=1.15.0
 azure-keyvault-secrets>=4.7.0
 pyodbc>=5.0.0
 msal>=1.28.0
+waitress>=3.0.0
