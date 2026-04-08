@@ -49,7 +49,7 @@
 
     <nav class="navbar navbar-expand-lg navbar-dark navbar-custom mb-4 py-3 sticky-top">
         <div class="container">
-            <a class="navbar-brand" href="/"><i class="fa-solid fa-bolt text-warning me-2"></i>GO CONNECTION</a>
+            <a class="navbar-brand" href="{% if agent_token %}{{ url_for('index') }}?token={{ agent_token|urlencode }}{% else %}{{ url_for('index') }}{% endif %}"><i class="fa-solid fa-bolt text-warning me-2"></i>GO CONNECTION</a>
             <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -57,13 +57,13 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link {% if request.path == '/' %}active fw-bold text-white{% endif %}" href="/"><i class="fa-solid fa-house me-1"></i> Início</a>
+                        <a class="nav-link {% if request.path == '/' %}active fw-bold text-white{% endif %}" href="{% if agent_token %}{{ url_for('index') }}?token={{ agent_token|urlencode }}{% else %}{{ url_for('index') }}{% endif %}"><i class="fa-solid fa-house me-1"></i> Início</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.path == '/eletricidade' %}active fw-bold text-white{% endif %}" href="/eletricidade"><i class="fa-solid fa-bolt me-1"></i> Eletricidade</a>
+                        <a class="nav-link {% if request.path == '/eletricidade' %}active fw-bold text-white{% endif %}" href="{% if agent_token %}{{ url_for('calc_ele') }}?token={{ agent_token|urlencode }}{% else %}{{ url_for('calc_ele') }}{% endif %}"><i class="fa-solid fa-bolt me-1"></i> Eletricidade</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.path == '/gas' %}active fw-bold text-white{% endif %}" href="/gas"><i class="fa-solid fa-fire text-danger me-1"></i> Gás Natural</a>
+                        <a class="nav-link {% if request.path == '/gas' %}active fw-bold text-white{% endif %}" href="{% if agent_token %}{{ url_for('calc_gas') }}?token={{ agent_token|urlencode }}{% else %}{{ url_for('calc_gas') }}{% endif %}"><i class="fa-solid fa-fire text-danger me-1"></i> Gás Natural</a>
                     </li>
                 </ul>
                 <ul class="navbar-nav align-items-center">
@@ -72,7 +72,17 @@
                             <i class="fa-solid fa-moon"></i>
                         </button>
                     </li>
+                    {% if is_admin %}
+                    <li class="nav-item">
+                        <a class="nav-link text-warning" href="{{ url_for('logout') }}"><i class="fa-solid fa-right-from-bracket me-1"></i> Sair</a>
+                    </li>
+                    {% elif not agent_token %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/login' %}active fw-bold text-white{% endif %}" href="{{ url_for('login') }}"><i class="fa-brands fa-microsoft me-1"></i> Entrar (admin)</a>
+                    </li>
+                    {% endif %}
 
+                    {% if is_admin %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {% if 'config' in request.path %}active fw-bold text-white{% endif %}" href="#" role="button" data-bs-toggle="dropdown">
                             <i class="fa-solid fa-gear me-1"></i> Configurações
@@ -80,12 +90,9 @@
                         <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2">
                             <li><a class="dropdown-item py-2 fw-bold" href="/config_ele"><i class="fa-solid fa-bolt text-warning me-2"></i> Tarifários Eletricidade</a></li>
                             <li><a class="dropdown-item py-2 fw-bold" href="/config_gas"><i class="fa-solid fa-fire text-danger me-2"></i> Tarifários Gás</a></li>
-                            {% if session.get('admin_logged_in') %}
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item py-2 text-danger fw-bold" href="/logout"><i class="fa-solid fa-right-from-bracket me-2"></i> Terminar Sessão</a></li>
-                            {% endif %}
                         </ul>
                     </li>
+                    {% endif %}
                 </ul>
             </div>
         </div>
