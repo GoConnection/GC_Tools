@@ -43,6 +43,30 @@
             from { opacity: 0; transform: translateY(15px); }
             to { opacity: 1; transform: translateY(0); }
         }
+
+        /* SISTEMA DE NOTAS AVANÇADO (CRM) */
+        #notes-widget-container { position: fixed; bottom: 25px; left: 25px; z-index: 1050; }
+        #notes-toggle-btn { width: 60px; height: 60px; font-size: 24px; transition: transform 0.2s; box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15); }
+        #notes-panel { 
+            position: absolute; bottom: 75px; left: 0; width: 550px; height: 450px; 
+            background: white; border-radius: 8px; box-shadow: 0 1rem 3rem rgba(0,0,0,0.175);
+            display: flex; flex-direction: column; overflow: hidden; border: 1px solid #dee2e6;
+        }
+        .notes-header { background: #fbc02d; padding: 10px 15px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; color: #212529; }
+        .notes-body { display: flex; flex: 1; overflow: hidden; }
+        .notes-sidebar { width: 180px; background: #f8f9fa; border-right: 1px solid #dee2e6; display: flex; flex-direction: column; }
+        .notes-list { flex: 1; overflow-y: auto; padding: 0; margin: 0; list-style: none; }
+        .note-list-item { padding: 12px; border-bottom: 1px solid #dee2e6; cursor: pointer; font-size: 13px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; transition: background 0.2s;}
+        .note-list-item:hover, .note-list-item.active { background: #e9ecef; font-weight: bold; border-left: 4px solid #fbc02d; }
+        .notes-main { flex: 1; display: flex; flex-direction: column; background: #fff9c4; position: relative; }
+        .notes-toolbar { background: #fbc02d; padding: 5px; display: flex; gap: 5px; border-bottom: 1px solid #f0b620; }
+        .note-btn { background: white; border: 1px solid #ccc; border-radius: 4px; width: 30px; height: 30px; cursor: pointer; font-weight: bold; color: #212529; }
+        .note-btn:hover { background: #e9ecef; }
+        .note-title { border: none; background: transparent; font-weight: bold; padding: 12px; font-size: 18px; outline: none; border-bottom: 1px dashed #ccc; color: #212529;}
+        .note-editor { flex: 1; padding: 15px; outline: none; overflow-y: auto; font-size: 14px; color: #212529; }
+        .note-editor b { font-weight: 800; }
+        .note-footer { padding: 8px 10px; background: #fff9c4; border-top: 1px dashed #ccc; display: flex; justify-content: flex-end; }
+        #empty-state { display: flex; flex: 1; align-items: center; justify-content: center; flex-direction: column; color: #6c757d; }
     </style>
 </head>
 <body class="bg-body">
@@ -126,6 +150,46 @@
         <div class="container small text-muted">&copy; GO_CONNECTION - Plataforma B2B</div>
     </footer>
 
+    <div id="notes-widget-container">
+        <button id="notes-toggle-btn" class="btn btn-warning rounded-circle d-flex align-items-center justify-content-center" onclick="toggleNotesPanel()">
+            <i class="fa-solid fa-pen-to-square"></i>
+        </button>
+        
+        <div id="notes-panel" class="d-none">
+            <div class="notes-header">
+                <span><i class="fa-solid fa-folder-open me-2"></i>Meus Blocos de Notas (<span id="notes-count">0</span>/10)</span>
+                <button type="button" class="btn-close" onclick="toggleNotesPanel()"></button>
+            </div>
+            <div class="notes-body">
+                <div class="notes-sidebar">
+                    <ul class="notes-list" id="notes-list"></ul>
+                    <div class="p-2 border-top">
+                        <button class="btn btn-sm btn-dark w-100 fw-bold shadow-sm" onclick="createNewNote()">+ Nova Pasta</button>
+                    </div>
+                </div>
+                
+                <div class="notes-main d-none" id="note-active-area">
+                    <input type="text" class="note-title" id="note-title" placeholder="Nome do Cliente / NIF..." onblur="saveCurrentNote()">
+                    <div class="notes-toolbar">
+                        <button class="note-btn" onclick="execCmd('bold')" title="Negrito"><i class="fa-solid fa-bold"></i></button>
+                        <button class="note-btn" onclick="execCmd('italic')" title="Itálico"><i class="fa-solid fa-italic"></i></button>
+                        <button class="note-btn" onclick="execCmd('underline')" title="Sublinhado"><i class="fa-solid fa-underline"></i></button>
+                        <button class="note-btn" onclick="execCmd('insertUnorderedList')" title="Lista"><i class="fa-solid fa-list-ul"></i></button>
+                    </div>
+                    <div class="note-editor" id="note-editor" contenteditable="true" onblur="saveCurrentNote()"></div>
+                    <div class="note-footer">
+                        <button class="btn btn-sm btn-outline-danger fw-bold" onclick="deleteCurrentNote()"><i class="fa-solid fa-trash me-1"></i>Apagar Pasta</button>
+                    </div>
+                </div>
+                
+                <div id="empty-state">
+                    <i class="fa-solid fa-folder-plus fs-1 mb-2 text-warning"></i>
+                    <p class="small text-center px-4">Crie uma nova pasta para guardar detalhes da chamada (NIF, CPE, Morada) sem sair do simulador.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
@@ -166,6 +230,110 @@
                 }
             });
         });
+
+        // ==========================================
+        // LÓGICA DO SISTEMA DE NOTAS E CRM
+        // ==========================================
+        let userNotes = [];
+        let currentNoteId = null;
+        const urlParamsNotes = new URLSearchParams(window.location.search);
+        const userTokenNotes = urlParamsNotes.get('token') || 'admin_session';
+
+        function execCmd(command) {
+            document.execCommand(command, false, null);
+            document.getElementById('note-editor').focus();
+            saveCurrentNote();
+        }
+
+        function toggleNotesPanel() {
+            const panel = document.getElementById('notes-panel');
+            panel.classList.toggle('d-none');
+            if (!panel.classList.contains('d-none')) {
+                loadNotesFromServer();
+            }
+        }
+
+        async function loadNotesFromServer() {
+            try {
+                const res = await fetch(`/api/notes?token=${userTokenNotes}`);
+                const data = await res.json();
+                if (data.notes) {
+                    userNotes = data.notes;
+                    renderNotesList();
+                }
+            } catch (e) { console.error("Erro ao carregar notas", e); }
+        }
+
+        async function saveCurrentNote() {
+            if (!currentNoteId) return;
+            const title = document.getElementById('note-title').value || 'Sem título';
+            const content = document.getElementById('note-editor').innerHTML;
+            
+            const note = userNotes.find(n => n.id === currentNoteId);
+            if (note) { note.title = title; note.content = content; renderNotesList(); }
+
+            try {
+                const res = await fetch(`/api/notes?token=${userTokenNotes}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: currentNoteId, title: title, content: content })
+                });
+                const data = await res.json();
+                if (data.id && currentNoteId === 'new') { currentNoteId = data.id; loadNotesFromServer(); }
+            } catch (e) { console.error("Erro ao guardar nota", e); }
+        }
+
+        async function createNewNote() {
+            if (userNotes.length >= 10) { alert('Atingiu o limite de 10 blocos de notas. Apague um antigo para criar novo.'); return; }
+            try {
+                const res = await fetch(`/api/notes?token=${userTokenNotes}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: 'Nova Nota', content: '' })
+                });
+                const data = await res.json();
+                if (data.success) { await loadNotesFromServer(); openNote(data.id); }
+            } catch (e) { console.error("Erro ao criar", e); }
+        }
+
+        async function deleteCurrentNote() {
+            if (!currentNoteId || !confirm('Tem a certeza que quer apagar permanentemente esta pasta?')) return;
+            try {
+                const res = await fetch(`/api/notes/${currentNoteId}?token=${userTokenNotes}`, { method: 'DELETE' });
+                if (res.ok) {
+                    currentNoteId = null;
+                    document.getElementById('note-active-area').classList.add('d-none');
+                    document.getElementById('empty-state').classList.remove('d-none');
+                    await loadNotesFromServer();
+                }
+            } catch (e) { console.error("Erro ao apagar", e); }
+        }
+
+        function renderNotesList() {
+            const list = document.getElementById('notes-list');
+            list.innerHTML = '';
+            document.getElementById('notes-count').innerText = userNotes.length;
+            
+            userNotes.forEach(n => {
+                const li = document.createElement('li');
+                li.className = 'note-list-item' + (n.id === currentNoteId ? ' active' : '');
+                li.innerText = n.title || 'Sem título';
+                li.onclick = () => openNote(n.id);
+                list.appendChild(li);
+            });
+        }
+
+        function openNote(id) {
+            const note = userNotes.find(n => n.id === id);
+            if (!note) return;
+            currentNoteId = note.id;
+            document.getElementById('note-title').value = note.title;
+            document.getElementById('note-editor').innerHTML = note.content;
+            
+            document.getElementById('empty-state').classList.add('d-none');
+            document.getElementById('note-active-area').classList.remove('d-none');
+            renderNotesList();
+        }
     </script>
 </body>
 </html>

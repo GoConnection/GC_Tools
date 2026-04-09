@@ -1,11 +1,14 @@
 import os
 import secrets
 import sys
+import json
+import uuid
 
 from flask import (
     Flask,
     Response,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -416,6 +419,80 @@ def download_template():
     except Exception as e:
         flash('Ficheiro de exemplo não encontrado no servidor. Certifique-se de que se chama "energia.csv" e está na pasta principal.', 'danger')
         return redirect(url_for('config_ele'))
+
+# ==========================================
+# ROTAS DO SISTEMA DE NOTAS E CRM (JSON)
+# ==========================================
+NOTES_FILE = "notes.json"
+
+def load_notes():
+    if not os.path.exists(NOTES_FILE):
+        return {}
+    try:
+        with open(NOTES_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def save_notes(data):
+    try:
+        with open(NOTES_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print("Erro ao guardar notas no ficheiro JSON:", e)
+
+@app.route('/api/notes', methods=['GET'])
+def get_notes():
+    token = request.args.get('token') or session.get("admin_logged_in")
+    if not token:
+        return jsonify({"error": "Acesso negado. Token necessário."}), 403
+    data = load_notes()
+    user_notes = data.get(str(token), [])
+    return jsonify({"notes": user_notes})
+
+@app.route('/api/notes', methods=['POST'])
+def save_note():
+    token = request.args.get('token') or session.get("admin_logged_in")
+    if not token:
+        return jsonify({"error": "Acesso negado."}), 403
+    req = request.json or {}
+    data = load_notes()
+    user_notes = data.get(str(token), [])
+    
+    note_id = req.get('id')
+    title = req.get('title', 'Nova Nota')
+    content = req.get('content', '')
+    
+    if note_id:
+        for n in user_notes:
+            if n['id'] == note_id:
+                n['title'] = title
+                n['content'] = content
+                break
+    else:
+        if len(user_notes) >= 10:
+            return jsonify({"error": "Limite máximo atingido"}), 400
+        note_id = str(uuid.uuid4())
+        user_notes.append({
+            "id": note_id,
+            "title": title,
+            "content": content
+        })
+    
+    data[str(token)] = user_notes
+    save_notes(data)
+    return jsonify({"success": True, "id": note_id})
+
+@app.route('/api/notes/<note_id>', methods=['DELETE'])
+def delete_note(note_id):
+    token = request.args.get('token') or session.get("admin_logged_in")
+    if not token:
+        return jsonify({"error": "Acesso negado."}), 403
+    data = load_notes()
+    user_notes = data.get(str(token), [])
+    data[str(token)] = [n for n in user_notes if n['id'] != str(note_id)]
+    save_notes(data)
+    return jsonify({"success": True})
 
 if __name__ == '__main__':
     with app.app_context():
