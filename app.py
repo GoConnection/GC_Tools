@@ -25,11 +25,11 @@ from db_config import (
 )
 from keyvault import KeyVaultConfigurationError, apply_key_vault_secrets_to_app
 from msal_auth import (
-    admin_email_lookup_details,
     acquire_token_by_auth_code,
     email_from_id_token_claims,
     get_authorization_url,
     get_msal_redirect_uri,
+    is_email_in_gctools_admins,
 )
 
 app = Flask(__name__)
@@ -159,35 +159,16 @@ def auth_callback():
         )
     redirect_uri = get_msal_redirect_uri()
     result = acquire_token_by_auth_code(app, code, redirect_uri)
-    claims = result.get("id_token_claims") or {}
     email = email_from_id_token_claims(result)
-    claim_key = None
-    for k in ("email", "preferred_username", "upn"):
-        v = claims.get(k)
-        if v and str(v).strip():
-            claim_key = k
-            break
     if not email:
         return Response(
             "Could not read email from the Microsoft account (id token).",
             status=403,
             mimetype="text/plain",
         )
-    admin_lookup = admin_email_lookup_details(email)
-    if not admin_lookup["found"]:
+    if not is_email_in_gctools_admins(email):
         return Response(
-            (
-                "This account is not in vw_GCTools_Admins and cannot use admin features.\n\n"
-                f"Debug:\n"
-                f"- extracted_email: {email}\n"
-                f"- extracted_from_claim: {claim_key or 'none'}\n"
-                f"- claim_email: {claims.get('email')}\n"
-                f"- claim_preferred_username: {claims.get('preferred_username')}\n"
-                f"- claim_upn: {claims.get('upn')}\n"
-                f"- checked_view: {admin_lookup.get('view')}\n"
-                f"- checked_column: {admin_lookup.get('column')}\n"
-                f"- sql_error: {admin_lookup.get('sql_error')}\n"
-            ),
+            "This account is not in vw_GCTools_Admins and cannot use admin features.",
             status=403,
             mimetype="text/plain",
         )
