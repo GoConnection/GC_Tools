@@ -6,11 +6,7 @@ from app import app
 
 
 def main() -> None:
-    port = int(
-        os.environ.get("ASPNETCORE_PORT")
-        or os.environ.get("HTTP_PLATFORM_PORT")
-        or "5000"
-    )
+    port = int(os.environ.get("HTTP_PLATFORM_PORT") or "5000")
     print(f"Starting server on port {port}")
     serve(app, host="0.0.0.0", port=port)
 
