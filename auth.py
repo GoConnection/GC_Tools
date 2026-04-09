@@ -34,12 +34,19 @@ def _effective_route_path() -> str:
     (e.g. /GC_Tools) to match.
     """
     path = request.path or "/"
-    prefix = (os.environ.get("GCTOOLS_PATH_PREFIX") or "").strip().rstrip("/")
-    if prefix:
+    configured_prefix = (os.environ.get("GCTOOLS_PATH_PREFIX") or "").strip().rstrip("/")
+    script_root = (request.script_root or "").strip().rstrip("/")
+
+    # Prefer explicit config; also support IIS-provided script_root automatically.
+    for prefix in (configured_prefix, script_root):
+        if not prefix:
+            continue
         if path == prefix or path == prefix + "/":
             path = "/"
-        elif path.startswith(prefix + "/"):
+            break
+        if path.startswith(prefix + "/"):
             path = path[len(prefix) :] or "/"
+            break
 
     # Normalize trailing slashes to avoid false negatives (/gas/ vs /gas).
     if path != "/" and path.endswith("/"):
