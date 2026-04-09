@@ -59,6 +59,10 @@ def _effective_route_path() -> str:
         candidate = "/" + parts[2] if parts[2] else "/"
         if candidate in _KNOWN_EXACT_PATHS:
             return candidate
+    if len(parts) == 2 and parts[0] == "" and parts[1]:
+        # Handle /GC_Tools (no trailing slash) as app root when hosted
+        # under a virtual directory.
+        return "/"
 
     return path
 

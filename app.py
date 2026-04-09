@@ -35,6 +35,31 @@ from msal_auth import (
 app = Flask(__name__)
 app.secret_key = "energia_mother_v50_excel_importer"
 
+
+class PrefixStripMiddleware:
+    """Strip a configured URL prefix from PATH_INFO for IIS virtual directories."""
+
+    def __init__(self, wsgi_app, prefix: str):
+        self.wsgi_app = wsgi_app
+        self.prefix = (prefix or "").strip().rstrip("/")
+
+    def __call__(self, environ, start_response):
+        if not self.prefix:
+            return self.wsgi_app(environ, start_response)
+        path = environ.get("PATH_INFO") or ""
+        if path == self.prefix or path == self.prefix + "/":
+            environ["PATH_INFO"] = "/"
+            environ["SCRIPT_NAME"] = self.prefix
+        elif path.startswith(self.prefix + "/"):
+            environ["PATH_INFO"] = path[len(self.prefix) :] or "/"
+            environ["SCRIPT_NAME"] = self.prefix
+        return self.wsgi_app(environ, start_response)
+
+
+_path_prefix = os.environ.get("GCTOOLS_PATH_PREFIX")
+if _path_prefix:
+    app.wsgi_app = PrefixStripMiddleware(app.wsgi_app, _path_prefix)
+
 try:
     apply_key_vault_secrets_to_app(app)
 except KeyVaultConfigurationError as e:
