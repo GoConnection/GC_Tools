@@ -21,6 +21,7 @@ from flask import Flask, Response, g, request, session
 _CALC_PATHS = frozenset({"/", "/eletricidade", "/gas"})
 _ADMIN_PATHS = frozenset({"/config_ele", "/config_gas", "/download_template"})
 _AUTH_EXEMPT_PATHS = frozenset({"/login", "/logout", "/auth/callback"})
+_KNOWN_EXACT_PATHS = _CALC_PATHS | _ADMIN_PATHS | _AUTH_EXEMPT_PATHS
 
 
 def _effective_route_path() -> str:
@@ -34,12 +35,24 @@ def _effective_route_path() -> str:
     """
     path = request.path or "/"
     prefix = (os.environ.get("GCTOOLS_PATH_PREFIX") or "").strip().rstrip("/")
-    if not prefix:
-        return path
-    if path == prefix or path == prefix + "/":
-        return "/"
-    if path.startswith(prefix + "/"):
-        return path[len(prefix) :] or "/"
+    if prefix:
+        if path == prefix or path == prefix + "/":
+            path = "/"
+        elif path.startswith(prefix + "/"):
+            path = path[len(prefix) :] or "/"
+
+    # Normalize trailing slashes to avoid false negatives (/gas/ vs /gas).
+    if path != "/" and path.endswith("/"):
+        path = path.rstrip("/") or "/"
+
+    # IIS virtual-directory fallback: if PATH_INFO still includes one leading
+    # segment (e.g. /GC_Tools/gas), reduce to /gas when it matches known routes.
+    parts = path.split("/", 2)
+    if len(parts) >= 3 and parts[0] == "":
+        candidate = "/" + parts[2] if parts[2] else "/"
+        if candidate in _KNOWN_EXACT_PATHS:
+            return candidate
+
     return path
 
 
