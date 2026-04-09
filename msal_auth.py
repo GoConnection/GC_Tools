@@ -76,9 +76,21 @@ def _email_column_sql() -> str:
 
 def is_email_in_gctools_admins(email: str) -> bool:
     """True if normalized email exists in vw_GCTools_Admins."""
+    return admin_email_lookup_details(email)["found"]
+
+
+def admin_email_lookup_details(email: str) -> Dict[str, Any]:
+    """Diagnostic helper: include whether query ran and what it checked."""
     em = (email or "").strip().lower()
     if not em or "@" not in em:
-        return False
+        return {
+            "found": False,
+            "checked_email": em,
+            "column": None,
+            "view": _ADMIN_VIEW,
+            "sql_error": None,
+            "invalid_email_input": True,
+        }
 
     col = _email_column_sql()
     sql = (
@@ -91,11 +103,25 @@ def is_email_in_gctools_admins(email: str) -> bool:
         try:
             cur = conn.cursor()
             cur.execute(sql, (em,))
-            return cur.fetchone() is not None
+            return {
+                "found": cur.fetchone() is not None,
+                "checked_email": em,
+                "column": col,
+                "view": _ADMIN_VIEW,
+                "sql_error": None,
+                "invalid_email_input": False,
+            }
         finally:
             conn.close()
-    except pyodbc.Error:
-        return False
+    except pyodbc.Error as e:
+        return {
+            "found": False,
+            "checked_email": em,
+            "column": col,
+            "view": _ADMIN_VIEW,
+            "sql_error": str(e),
+            "invalid_email_input": False,
+        }
 
 
 def get_msal_redirect_uri() -> str:

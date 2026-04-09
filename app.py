@@ -25,11 +25,11 @@ from db_config import (
 )
 from keyvault import KeyVaultConfigurationError, apply_key_vault_secrets_to_app
 from msal_auth import (
+    admin_email_lookup_details,
     acquire_token_by_auth_code,
     email_from_id_token_claims,
     get_authorization_url,
     get_msal_redirect_uri,
-    is_email_in_gctools_admins,
 )
 
 app = Flask(__name__)
@@ -173,7 +173,8 @@ def auth_callback():
             status=403,
             mimetype="text/plain",
         )
-    if not is_email_in_gctools_admins(email):
+    admin_lookup = admin_email_lookup_details(email)
+    if not admin_lookup["found"]:
         return Response(
             (
                 "This account is not in vw_GCTools_Admins and cannot use admin features.\n\n"
@@ -183,6 +184,9 @@ def auth_callback():
                 f"- claim_email: {claims.get('email')}\n"
                 f"- claim_preferred_username: {claims.get('preferred_username')}\n"
                 f"- claim_upn: {claims.get('upn')}\n"
+                f"- checked_view: {admin_lookup.get('view')}\n"
+                f"- checked_column: {admin_lookup.get('column')}\n"
+                f"- sql_error: {admin_lookup.get('sql_error')}\n"
             ),
             status=403,
             mimetype="text/plain",
