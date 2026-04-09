@@ -159,7 +159,14 @@ def auth_callback():
         )
     redirect_uri = get_msal_redirect_uri()
     result = acquire_token_by_auth_code(app, code, redirect_uri)
+    claims = result.get("id_token_claims") or {}
     email = email_from_id_token_claims(result)
+    claim_key = None
+    for k in ("email", "preferred_username", "upn"):
+        v = claims.get(k)
+        if v and str(v).strip():
+            claim_key = k
+            break
     if not email:
         return Response(
             "Could not read email from the Microsoft account (id token).",
@@ -168,7 +175,15 @@ def auth_callback():
         )
     if not is_email_in_gctools_admins(email):
         return Response(
-            "This account is not in vw_GCTools_Admins and cannot use admin features.",
+            (
+                "This account is not in vw_GCTools_Admins and cannot use admin features.\n\n"
+                f"Debug:\n"
+                f"- extracted_email: {email}\n"
+                f"- extracted_from_claim: {claim_key or 'none'}\n"
+                f"- claim_email: {claims.get('email')}\n"
+                f"- claim_preferred_username: {claims.get('preferred_username')}\n"
+                f"- claim_upn: {claims.get('upn')}\n"
+            ),
             status=403,
             mimetype="text/plain",
         )
