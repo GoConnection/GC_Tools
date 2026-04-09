@@ -60,9 +60,13 @@ def _effective_route_path() -> str:
         if candidate in _KNOWN_EXACT_PATHS:
             return candidate
     if len(parts) == 2 and parts[0] == "" and parts[1]:
-        # Handle /GC_Tools (no trailing slash) as app root when hosted
-        # under a virtual directory.
-        return "/"
+        # Handle "<prefix>" with no trailing slash as app root, but only when
+        # it matches the configured prefix or current script_root.
+        seg = "/" + parts[1]
+        if configured_prefix and seg == configured_prefix:
+            return "/"
+        if script_root and seg == script_root:
+            return "/"
 
     return path
 
