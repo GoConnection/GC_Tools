@@ -15,13 +15,22 @@ from __future__ import annotations
 
 import hmac
 import os
+import re
+from threading import Lock
 
-from flask import Flask, Response, g, request, session
+from cachetools import TTLCache
+from flask import Flask, Response, g, redirect, request, session
 
 _CALC_PATHS = frozenset({"/", "/eletricidade", "/gas"})
 _ADMIN_PATHS = frozenset({"/config_ele", "/config_gas", "/download_template"})
 _AUTH_EXEMPT_PATHS = frozenset({"/login", "/logout", "/auth/callback"})
 _KNOWN_EXACT_PATHS = _CALC_PATHS | _ADMIN_PATHS | _AUTH_EXEMPT_PATHS
+_HANDSHAKE_REGISTER_PATH = "/internal/register-handshake"
+_GUID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+)
+_PENDING_HANDSHAKES = TTLCache(maxsize=500, ttl=60)
+_PENDING_HANDSHAKES_LOCK = Lock()
 
 
 def _effective_route_path() -> str:
@@ -88,17 +97,73 @@ def _query_token() -> str:
     return (request.args.get("token") or request.form.get("token") or "").strip()
 
 
+def _bearer_token() -> str:
+    authz = (request.headers.get("Authorization") or "").strip()
+    if not authz:
+        return ""
+    scheme, _, token = authz.partition(" ")
+    if scheme.lower() != "bearer":
+        return ""
+    return token.strip()
+
+
+def _query_handshake_token() -> str:
+    return (request.args.get("ht") or "").strip()
+
+
+def _consume_handshake(token: str) -> bool:
+    with _PENDING_HANDSHAKES_LOCK:
+        return _PENDING_HANDSHAKES.pop(token, None) is not None
+
+
+def _store_handshake(token: str) -> None:
+    with _PENDING_HANDSHAKES_LOCK:
+        _PENDING_HANDSHAKES[token] = True
+
+
 def register_access_control(app: Flask) -> None:
+    @app.post(_HANDSHAKE_REGISTER_PATH)
+    def register_handshake() -> Response:
+        data = request.get_json(silent=True) or {}
+        token = str(data.get("token", "")).strip()
+        if not token or not _GUID_RE.fullmatch(token):
+            return Response(
+                "Bad request. JSON body must include a valid GUID token.",
+                status=400,
+                mimetype="text/plain",
+            )
+        _store_handshake(token)
+        return Response(status=200)
+
     @app.before_request
     def _access() -> Response | None:
         if request.method == "OPTIONS":
             return None
 
         path = _effective_route_path()
+        expected = _agent_token_config(app)
 
         if path.startswith("/static/"):
             return None
         if path == "/favicon.ico":
+            return None
+
+        if path == _HANDSHAKE_REGISTER_PATH:
+            if request.method != "POST":
+                return Response("Method not allowed.", status=405, mimetype="text/plain")
+            if not expected:
+                return Response(
+                    "Server misconfiguration: GCTOOLS_BEARER_TOKEN is not set.",
+                    status=503,
+                    mimetype="text/plain",
+                )
+            got_bearer = _bearer_token()
+            if not got_bearer or not _token_match(expected, got_bearer):
+                return Response(
+                    "Unauthorized. Provide a valid static Bearer token.",
+                    status=401,
+                    mimetype="text/plain",
+                )
             return None
 
         if path in _AUTH_EXEMPT_PATHS:
@@ -108,7 +173,28 @@ def register_access_control(app: Flask) -> None:
             g.gctools_role = "admin"
             return None
 
-        expected = _agent_token_config(app)
+        ht = _query_handshake_token()
+        if ht:
+            if not _consume_handshake(ht):
+                return Response(
+                    "Unauthorized. Handshake token is invalid or expired.",
+                    status=401,
+                    mimetype="text/plain",
+                )
+            session["authenticated"] = True
+            root = (request.script_root or "").rstrip("/") + "/"
+            return redirect(root)
+
+        if session.get("authenticated"):
+            g.gctools_role = "agent"
+            if path not in _CALC_PATHS:
+                return Response(
+                    "Forbidden: agent session only allows access to calculators.",
+                    status=403,
+                    mimetype="text/plain",
+                )
+            return None
+
         if not expected:
             return Response(
                 "Server misconfiguration: GCTOOLS_BEARER_TOKEN is not set.",

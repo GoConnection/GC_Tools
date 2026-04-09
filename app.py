@@ -34,6 +34,8 @@ from msal_auth import (
 
 app = Flask(__name__)
 app.secret_key = "energia_mother_v50_excel_importer"
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SECURE"] = True
 
 
 class PrefixStripMiddleware:
@@ -183,6 +185,7 @@ def logout():
     session.pop("admin_logged_in", None)
     session.pop("admin_email", None)
     session.pop("msal_state", None)
+    session.pop("authenticated", None)
     flash("Sessão terminada.", "info")
     return redirect(url_for("login"))
 
