@@ -12,375 +12,531 @@
     }
 </style>
 
-<h2 class="mb-4 text-primary">Simulador de Eletricidade B2B</h2>
-
-<div id="ab-test-banner" class="alert alert-secondary border-secondary shadow-sm mb-4 position-relative d-none bg-body">
-    <button type="button" class="btn-close position-absolute top-0 end-0 m-2" onclick="limparCenarioAB()"></button>
-    <h6 class="fw-bold text-secondary-emphasis"><i class="fa-solid fa-code-compare me-2"></i>Cenário Guardado (A/B Testing)</h6>
-    <div class="row mt-2">
-        <div class="col-md-3 text-body"><strong>Nossa Proposta:</strong> <span id="ab-nos" class="text-success fw-bold fs-5"></span>€</div>
-        <div class="col-md-3 text-body"><strong>Gasto Cliente:</strong> <span id="ab-cli" class="text-danger fw-bold fs-5"></span>€</div>
-        <div class="col-md-3 text-body"><strong>Poupança Anual:</strong> <span id="ab-ano" class="fw-bold fs-5"></span>€</div>
-        <div class="col-md-3 text-body small d-flex align-items-center"><strong>Produto:</strong>&nbsp;<span id="ab-prod" class="text-muted text-truncate"></span></div>
-    </div>
-</div>
-
-<form method="POST" id="eleForm" class="bg-body-tertiary p-4 border rounded shadow-sm">
-    <div class="row g-3 mb-4 border-bottom pb-3 bg-body-secondary p-2 rounded align-items-center">
-        <div class="col-md-3">
-            <label class="fw-bold text-body">Segmento (Potência)</label>
-            <select name="segmento" id="segmento" class="form-select border-primary fw-bold bg-body text-body" onchange="toggleSegmento()">
-                <option value="BTN" {% if segmento == 'BTN' %}selected{% endif %}>BTN (≤ 41.40 kVA)</option>
-                <option value="BTE" {% if segmento == 'BTE' %}selected{% endif %}>BTE (≥ 41.41 kW)</option>
-            </select>
-        </div>
-        <div class="col-md-3">
-            <label class="fw-bold text-body">Tipo Energia</label>
-            <select name="tipo_ee" class="form-select border-primary bg-body text-body" onchange="document.getElementById('eleForm').submit()">
-                <option value="EN" {% if tipo_ee == 'EN' %}selected{% endif %}>Normal (EN) - Soma TAR</option>
-                <option value="EV" {% if tipo_ee == 'EV' %}selected{% endif %}>Verde (EV) - TAR Incluída</option>
-            </select>
-        </div>
-        <div class="col-md-3">
-            <label class="fw-bold text-body">Nº de Dias</label>
-            <input type="number" name="dias" class="form-control bg-body text-body" value="{{ request.form.get('dias', 30) }}">
-        </div>
+<div class="row">
+    <div class="col-xl-9">
         
-        <div class="col-md-3">
-            <label class="fw-bold text-body">Produto a Simular</label>
-            <select name="prod_idx" class="form-select border-success fw-bold bg-success text-white bg-opacity-75" style="font-size: 0.85rem;">
-                {% for p in config[segmento][tipo_ee].produtos %}
-                    {% set p1_f = p.p1 | round(6) %}
-                    {% set p2_f = p.p2 | round(6) %}
-                    {% set p3_f = p.p3 | round(6) %}
-                    {% set p4_f = p.p4 | round(6) %}
-                    
-                    <option value="{{loop.index0}}" {% if request.form.get('prod_idx')|int == loop.index0 %}selected{% endif %}>
-                        {{p.nome}} 
-                        {% if p.tipo == 'SIM' %}
-                            ({{ p1_f }}€)
-                        {% elif p.tipo == 'BIH' %}
-                            ({{ p2_f }}€ | {{ p3_f }}€)
-                        {% elif p.tipo == 'TRI' %}
-                            ({{ p1_f }}€ | {{ p2_f }}€ | {{ p3_f }}€)
-                        {% elif p.tipo == 'TETRA' %}
-                            ({{ p1_f }}€ | {{ p2_f }}€ | {{ p3_f }}€ | {{ p4_f }}€)
-                        {% endif %}
-                    </option>
-                {% endfor %}
-            </select>
-        </div>
-    </div>
+        <h2 class="mb-4 text-primary">Simulador de Eletricidade B2B</h2>
 
-    <div class="row g-4">
-        <div class="col-md-7 border-end">
-            <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
-                <h5 class="text-danger fw-bold mb-0">FATURA CLIENTE</h5>
-                <div class="d-flex align-items-center gap-3">
-                    <a href="https://e.pcloud.link/publink/show?code=TBwy6alK" target="_blank" class="btn btn-sm btn-info text-white fw-bold shadow-sm" data-bs-toggle="tooltip" title="Cliente com dúvidas? Clique para abrir o guia visual de faturas da concorrência.">
-                        <i class="fa-solid fa-magnifying-glass me-1"></i>Onde ler a fatura?
-                    </a>
-                    <div class="d-flex align-items-center">
-                        <label class="small fw-bold text-body me-2 text-nowrap">Concorrência:</label>
-                        <select name="fornecedor" class="form-select form-select-sm bg-body text-body border-secondary-subtle">
-                            <option value="Outro" {% if request.form.get('fornecedor') == 'Outro' %}selected{% endif %}>Outro / Desconhecido</option>
-                            <option value="EDP" {% if request.form.get('fornecedor') == 'EDP' %}selected{% endif %}>EDP Comercial</option>
-                            <option value="Endesa" {% if request.form.get('fornecedor') == 'Endesa' %}selected{% endif %}>Endesa</option>
-                            <option value="Iberdrola" {% if request.form.get('fornecedor') == 'Iberdrola' %}selected{% endif %}>Iberdrola</option>
-                            <option value="Galp" {% if request.form.get('fornecedor') == 'Galp' %}selected{% endif %}>Galp</option>
-                        </select>
+        <form method="POST" id="eleForm" class="bg-body-tertiary p-4 border rounded shadow-sm">
+            <div class="row g-3 mb-4 border-bottom pb-3 bg-body-secondary p-2 rounded align-items-center">
+                <div class="col-md-3">
+                    <label class="fw-bold text-body">Segmento (Potência)</label>
+                    <select name="segmento" id="segmento" class="form-select border-primary fw-bold bg-body text-body" onchange="toggleSegmento()">
+                        <option value="BTN" {% if segmento == 'BTN' %}selected{% endif %}>BTN (≤ 41.40 kVA)</option>
+                        <option value="BTE" {% if segmento == 'BTE' %}selected{% endif %}>BTE (≥ 41.41 kW)</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="fw-bold text-body">Tipo Energia</label>
+                    <select name="tipo_ee" class="form-select border-primary bg-body text-body" onchange="document.getElementById('eleForm').submit()">
+                        <option value="EN" {% if tipo_ee == 'EN' %}selected{% endif %}>Normal (EN) - Soma TAR</option>
+                        <option value="EV" {% if tipo_ee == 'EV' %}selected{% endif %}>Verde (EV) - TAR Incluída</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="fw-bold text-body">Nº de Dias</label>
+                    <input type="number" name="dias" class="form-control bg-body text-body" value="{{ request.form.get('dias', 30) }}">
+                </div>
+                
+                <div class="col-md-3">
+                    <label class="fw-bold text-body">Produto a Simular</label>
+                    <select name="prod_idx" class="form-select border-success fw-bold bg-success text-white bg-opacity-75" style="font-size: 0.85rem;">
+                        {% for p in config[segmento][tipo_ee].produtos %}
+                            {% set p1_f = p.p1 | round(6) %}
+                            {% set p2_f = p.p2 | round(6) %}
+                            {% set p3_f = p.p3 | round(6) %}
+                            {% set p4_f = p.p4 | round(6) %}
+                            
+                            <option value="{{loop.index0}}" {% if request.form.get('prod_idx')|int == loop.index0 %}selected{% endif %}>
+                                {{p.nome}} 
+                                {% if p.tipo == 'SIM' %}
+                                    ({{ p1_f }}€)
+                                {% elif p.tipo == 'BIH' %}
+                                    ({{ p2_f }}€ | {{ p3_f }}€)
+                                {% elif p.tipo == 'TRI' %}
+                                    ({{ p1_f }}€ | {{ p2_f }}€ | {{ p3_f }}€)
+                                {% elif p.tipo == 'TETRA' %}
+                                    ({{ p1_f }}€ | {{ p2_f }}€ | {{ p3_f }}€ | {{ p4_f }}€)
+                                {% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-md-7 border-end">
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+                        <h5 class="text-danger fw-bold mb-0">FATURA CLIENTE</h5>
+                        <div class="d-flex align-items-center gap-3">
+                            <a href="https://e.pcloud.link/publink/show?code=TBwy6alK" target="_blank" class="btn btn-sm btn-info text-white fw-bold shadow-sm" data-bs-toggle="tooltip" title="Cliente com dúvidas? Clique para abrir o guia visual de faturas da concorrência.">
+                                <i class="fa-solid fa-magnifying-glass me-1"></i>Onde ler a fatura?
+                            </a>
+                            <div class="d-flex align-items-center">
+                                <label class="small fw-bold text-body me-2 text-nowrap">Concorrência:</label>
+                                <select name="fornecedor" class="form-select form-select-sm bg-body text-body border-secondary-subtle">
+                                    <option value="Outro" {% if request.form.get('fornecedor') == 'Outro' %}selected{% endif %}>Outro / Desconhecido</option>
+                                    <option value="EDP" {% if request.form.get('fornecedor') == 'EDP' %}selected{% endif %}>EDP Comercial</option>
+                                    <option value="Endesa" {% if request.form.get('fornecedor') == 'Endesa' %}selected{% endif %}>Endesa</option>
+                                    <option value="Iberdrola" {% if request.form.get('fornecedor') == 'Iberdrola' %}selected{% endif %}>Iberdrola</option>
+                                    <option value="Galp" {% if request.form.get('fornecedor') == 'Galp' %}selected{% endif %}>Galp</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning py-1 px-2 mb-3 text-center border-warning border-opacity-50">
+                        <i class="fa-solid fa-circle-info me-1 text-warning"></i>
+                        <small class="fw-bold text-warning-emphasis">No Catálogo bi-horário: Ponta = Fora de vazio &nbsp;|&nbsp; Cheio = Vazio</small>
+                    </div>
+                    
+                    <div class="mb-2 p-2 rounded border border-secondary-subtle" id="div_p1">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-md-3 small fw-bold text-body">P1 (Ponta)<span class="text-danger">*</span> <i class="fa-solid fa-circle-info ms-1 text-primary" data-bs-toggle="tooltip" title="Ponta = Fora de vazio (no catálogo bi-horário). Horas de maior consumo geral na rede. É a tarifa mais cara."></i></div>
+                            <div class="col-md-3"><input type="number" step="0.01" name="cons_p1" class="form-control form-control-sm border-danger bg-body text-body" placeholder="kWh" value="{{ request.form.get('cons_p1', '') }}"></div>
+                            <div class="col-md-3"><input type="number" step="0.000001" name="c_en_b_p1" class="form-control form-control-sm bg-body text-body" placeholder="Preço Base €" value="{{ request.form.get('c_en_b_p1', '') }}"></div>
+                            <div class="col-md-3"><input type="number" step="0.000001" name="c_en_t_p1" class="form-control form-control-sm bg-body text-body" placeholder="TAR Energia €" value="{{ request.form.get('c_en_t_p1', '') }}" data-bs-toggle="tooltip" title="TAR = Taxa de Acesso à Rede (Obrigatória em todas as comercializadoras)"></div>
+                        </div>
+                    </div>
+                    <div class="mb-2 p-2 rounded border border-secondary-subtle" id="div_p2">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-md-3 small fw-bold text-body">P2 (Cheias)<span class="text-danger">*</span> <i class="fa-solid fa-circle-info ms-1 text-primary" data-bs-toggle="tooltip" title="Cheio = Vazio (no catálogo bi-horário). Período de consumo intermédio."></i></div>
+                            <div class="col-md-3"><input type="number" step="0.01" name="cons_p2" class="form-control form-control-sm border-danger bg-body text-body" placeholder="kWh" value="{{ request.form.get('cons_p2', '') }}"></div>
+                            <div class="col-md-3"><input type="number" step="0.000001" name="c_en_b_p2" class="form-control form-control-sm bg-body text-body" placeholder="Preço Base €" value="{{ request.form.get('c_en_b_p2', '') }}"></div>
+                            <div class="col-md-3"><input type="number" step="0.000001" name="c_en_t_p2" class="form-control form-control-sm bg-body text-body" placeholder="TAR Energia €" value="{{ request.form.get('c_en_t_p2', '') }}"></div>
+                        </div>
+                    </div>
+                    <div class="mb-2 p-2 rounded border border-secondary-subtle" id="div_p3">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-md-3 small fw-bold text-body">P3 (Vazio)<span class="text-danger">*</span> <i class="fa-solid fa-circle-info ms-1 text-primary" data-bs-toggle="tooltip" title="Horas noturnas e fins-de-semana. Tarifa mais barata."></i></div>
+                            <div class="col-md-3"><input type="number" step="0.01" name="cons_p3" class="form-control form-control-sm border-danger bg-body text-body" placeholder="kWh" value="{{ request.form.get('cons_p3', '') }}"></div>
+                            <div class="col-md-3"><input type="number" step="0.000001" name="c_en_b_p3" class="form-control form-control-sm bg-body text-body" placeholder="Preço Base €" value="{{ request.form.get('c_en_b_p3', '') }}"></div>
+                            <div class="col-md-3"><input type="number" step="0.000001" name="c_en_t_p3" class="form-control form-control-sm bg-body text-body" placeholder="TAR Energia €" value="{{ request.form.get('c_en_t_p3', '') }}"></div>
+                        </div>
+                    </div>
+                    <div class="mb-2 p-2 rounded border border-secondary-subtle" id="div_p4" {% if segmento == 'BTN' %}style="display:none;"{% endif %}>
+                        <div class="row g-2 align-items-center">
+                            <div class="col-md-3 small fw-bold text-primary">P4 (S. Vazio) <i class="fa-solid fa-circle-info ms-1 text-primary" data-bs-toggle="tooltip" title="Madrugadas intensas. Exclusivo para BTE (Grandes Consumidores)."></i></div>
+                            <div class="col-md-3"><input type="number" step="0.01" name="cons_p4" class="form-control form-control-sm border-danger bg-body text-body" placeholder="kWh" value="{{ request.form.get('cons_p4', '') }}"></div>
+                            <div class="col-md-3"><input type="number" step="0.000001" name="c_en_b_p4" class="form-control form-control-sm bg-body text-body" placeholder="Preço Base €" value="{{ request.form.get('c_en_b_p4', '') }}"></div>
+                            <div class="col-md-3"><input type="number" step="0.000001" name="c_en_t_p4" class="form-control form-control-sm bg-body text-body" placeholder="TAR Energia €" value="{{ request.form.get('c_en_t_p4', '') }}"></div>
+                        </div>
+                    </div>
+
+                    <h5 class="text-danger fw-bold border-bottom pb-2 mt-4">TERMO DE POTÊNCIA (CLIENTE)</h5>
+                    {% if segmento == 'BTN' %}
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <select name="pot_btn" class="form-select border-danger bg-body text-body" data-bs-toggle="tooltip" title="kVA: Quantidade máxima de equipamentos que podem estar ligados em simultâneo.">
+                                {% for kva, val in config.BTN.potencias.items() %}
+                                <option value="{{kva}}" {% if request.form.get('pot_btn')==kva %}selected{% endif %}>{{kva}} kVA</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4"><input type="number" step="0.0001" name="c_pot_b" class="form-control bg-body text-body" placeholder="Base €/dia" value="{{ request.form.get('c_pot_b', '') }}"></div>
+                        <div class="col-md-4"><input type="number" step="0.0001" name="c_pot_t" class="form-control bg-body text-body" placeholder="TAR €/dia" value="{{ request.form.get('c_pot_t', '') }}"></div>
+                    </div>
+                    {% else %}
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-3 small fw-bold text-body">kW Ponta</div>
+                        <div class="col-md-3"><input type="number" step="0.01" name="bte_ponta_kw" id="bte_ponta" class="form-control border-danger bg-body text-body" placeholder="Total kW" value="{{ request.form.get('bte_ponta_kw', '') }}" onblur="checkBTEPower()" data-bs-toggle="tooltip" title="Potência registada nas horas mais críticas."></div>
+                        <div class="col-md-3"><input type="number" step="0.0001" name="c_ponta_b" class="form-control bg-body text-body" placeholder="Base" value="{{ request.form.get('c_ponta_b', '') }}"></div>
+                        <div class="col-md-3"><input type="number" step="0.0001" name="c_ponta_t" class="form-control bg-body text-body" placeholder="TAR" value="{{ request.form.get('c_ponta_t', '') }}"></div>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-3 small fw-bold text-body">kW Contratada</div>
+                        <div class="col-md-3"><input type="number" step="0.01" name="bte_cont_kw" id="bte_cont" class="form-control border-danger bg-body text-body" placeholder="Total kW" value="{{ request.form.get('bte_cont_kw', '') }}" onblur="checkBTEPower()" data-bs-toggle="tooltip" title="Potência máxima negociada e contratada com o fornecedor."></div>
+                        <div class="col-md-3"><input type="number" step="0.0001" name="c_cont_b" class="form-control bg-body text-body" placeholder="Base" value="{{ request.form.get('c_cont_b', '') }}"></div>
+                        <div class="col-md-3"><input type="number" step="0.0001" name="c_cont_t" class="form-control bg-body text-body" placeholder="TAR" value="{{ request.form.get('c_cont_t', '') }}"></div>
+                    </div>
+                    <div id="bte_warning" class="text-danger small mt-2 fw-bold" style="display:none;">⚠️ Aviso: Potências iguais ou inferiores a 41.40 pertencem à BTN.</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-5">
+                    <div class="alert alert-success h-100 shadow-sm border border-success">
+                        <h5 class="fw-bold">Nossa Proposta (Explicação)</h5>
+                        <hr>
+                        {% if tipo_ee == 'EN' %}
+                        <p>O preço final na Energia Normal (EN) é apresentado <strong>com a TAR adicionada ao Preço Base de Catálogo</strong>. A memória de cálculo abaixo comprova a transparência total desta soma matemática.</p>
+                        {% else %}
+                        <p>A Energia Verde (EV) <strong>já inclui a TAR na sua estrutura tarifária</strong>, pelo que o valor de base representa diretamente o preço final cobrado.</p>
+                        {% endif %}
                     </div>
                 </div>
             </div>
             
-            <div class="mb-2 p-2 rounded border border-secondary-subtle" id="div_p1">
-                <div class="row g-2 align-items-center">
-                    <div class="col-md-3 small fw-bold text-body">P1 (Ponta) <i class="fa-solid fa-circle-info ms-1 text-primary" data-bs-toggle="tooltip" title="Horas de maior consumo geral na rede. É a tarifa mais cara."></i></div>
-                    <div class="col-md-3"><input type="number" step="0.01" name="cons_p1" class="form-control form-control-sm border-danger bg-body text-body" placeholder="kWh" value="{{ request.form.get('cons_p1', '') }}"></div>
-                    <div class="col-md-3"><input type="number" step="0.000001" name="c_en_b_p1" class="form-control form-control-sm bg-body text-body" placeholder="Preço Base €" value="{{ request.form.get('c_en_b_p1', '') }}"></div>
-                    <div class="col-md-3"><input type="number" step="0.000001" name="c_en_t_p1" class="form-control form-control-sm bg-body text-body" placeholder="TAR Energia €" value="{{ request.form.get('c_en_t_p1', '') }}" data-bs-toggle="tooltip" title="TAR = Taxa de Acesso à Rede (Obrigatória em todas as comercializadoras)"></div>
-                </div>
+            <div class="d-flex gap-2 mt-4">
+                <button type="submit" class="btn btn-primary btn-lg flex-grow-1 shadow fw-bold">GERAR COMPARATIVO COMPLETO</button>
+                <button type="button" id="btn-sniper" class="btn btn-lg shadow fw-bold d-none text-white" style="background-color: #6f42c1;" onclick="acionarSniper()">
+                    <i class="fa-solid fa-bullseye me-2"></i>Top 3 Automático
+                </button>
             </div>
-            <div class="mb-2 p-2 rounded border border-secondary-subtle" id="div_p2">
-                <div class="row g-2 align-items-center">
-                    <div class="col-md-3 small fw-bold text-body">P2 (Cheias) <i class="fa-solid fa-circle-info ms-1 text-primary" data-bs-toggle="tooltip" title="Período de consumo intermédio (Maioria do horário laboral em dias úteis)."></i></div>
-                    <div class="col-md-3"><input type="number" step="0.01" name="cons_p2" class="form-control form-control-sm border-danger bg-body text-body" placeholder="kWh" value="{{ request.form.get('cons_p2', '') }}"></div>
-                    <div class="col-md-3"><input type="number" step="0.000001" name="c_en_b_p2" class="form-control form-control-sm bg-body text-body" placeholder="Preço Base €" value="{{ request.form.get('c_en_b_p2', '') }}"></div>
-                    <div class="col-md-3"><input type="number" step="0.000001" name="c_en_t_p2" class="form-control form-control-sm bg-body text-body" placeholder="TAR Energia €" value="{{ request.form.get('c_en_t_p2', '') }}"></div>
-                </div>
-            </div>
-            <div class="mb-2 p-2 rounded border border-secondary-subtle" id="div_p3">
-                <div class="row g-2 align-items-center">
-                    <div class="col-md-3 small fw-bold text-body">P3 (Vazio) <i class="fa-solid fa-circle-info ms-1 text-primary" data-bs-toggle="tooltip" title="Horas noturnas e fins-de-semana. Tarifa mais barata."></i></div>
-                    <div class="col-md-3"><input type="number" step="0.01" name="cons_p3" class="form-control form-control-sm border-danger bg-body text-body" placeholder="kWh" value="{{ request.form.get('cons_p3', '') }}"></div>
-                    <div class="col-md-3"><input type="number" step="0.000001" name="c_en_b_p3" class="form-control form-control-sm bg-body text-body" placeholder="Preço Base €" value="{{ request.form.get('c_en_b_p3', '') }}"></div>
-                    <div class="col-md-3"><input type="number" step="0.000001" name="c_en_t_p3" class="form-control form-control-sm bg-body text-body" placeholder="TAR Energia €" value="{{ request.form.get('c_en_t_p3', '') }}"></div>
-                </div>
-            </div>
-            <div class="mb-2 p-2 rounded border border-secondary-subtle" id="div_p4" {% if segmento == 'BTN' %}style="display:none;"{% endif %}>
-                <div class="row g-2 align-items-center">
-                    <div class="col-md-3 small fw-bold text-primary">P4 (S. Vazio) <i class="fa-solid fa-circle-info ms-1 text-primary" data-bs-toggle="tooltip" title="Madrugadas intensas. Exclusivo para BTE (Grandes Consumidores)."></i></div>
-                    <div class="col-md-3"><input type="number" step="0.01" name="cons_p4" class="form-control form-control-sm border-danger bg-body text-body" placeholder="kWh" value="{{ request.form.get('cons_p4', '') }}"></div>
-                    <div class="col-md-3"><input type="number" step="0.000001" name="c_en_b_p4" class="form-control form-control-sm bg-body text-body" placeholder="Preço Base €" value="{{ request.form.get('c_en_b_p4', '') }}"></div>
-                    <div class="col-md-3"><input type="number" step="0.000001" name="c_en_t_p4" class="form-control form-control-sm bg-body text-body" placeholder="TAR Energia €" value="{{ request.form.get('c_en_t_p4', '') }}"></div>
-                </div>
-            </div>
+        </form>
 
-            <h5 class="text-danger fw-bold border-bottom pb-2 mt-4">TERMO DE POTÊNCIA (CLIENTE)</h5>
-            {% if segmento == 'BTN' %}
-            <div class="row g-2">
-                <div class="col-md-4">
-                    <select name="pot_btn" class="form-select border-danger bg-body text-body" data-bs-toggle="tooltip" title="kVA: Quantidade máxima de equipamentos que podem estar ligados em simultâneo.">
-                        {% for kva, val in config.BTN.potencias.items() %}
-                        <option value="{{kva}}" {% if request.form.get('pot_btn')==kva %}selected{% endif %}>{{kva}} kVA</option>
+        <div class="modal fade" id="modalSniper" tabindex="-1" aria-hidden="true">
+          <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+              <div class="modal-header text-white" style="background-color: #6f42c1;">
+                <h5 class="modal-title fw-bold"><i class="fa-solid fa-trophy text-warning me-2"></i>As 3 Melhores Ofertas (Sniper)</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body bg-body-tertiary">
+                <p class="small text-muted mb-3 text-center">Calculado contra um custo total cliente de: <strong id="sniper-cli-total" class="text-danger"></strong>€</p>
+                <div id="sniper-results"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="resultados-ancora"></div>
+
+        {% if res %}
+
+        <div class="card mt-4 mb-4 shadow border-dark bg-body-tertiary position-relative">
+            <div class="card-header bg-dark text-white fw-bold d-flex justify-content-between align-items-center">
+                <span>MEMÓRIA DE CÁLCULO ({{ res.prod }})</span>
+                <button class="btn btn-sm btn-warning text-dark fw-bold shadow-sm" onclick="adicionarCenarioSidebar('{{ res.nos }}', '{{ res.cli }}', '{{ res.poup_anual }}', '{{ res.prod }}')">
+                    <i class="fa-solid fa-thumbtack me-1"></i>Fixar Cenário (Comparar)
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-bordered mb-0 text-center align-middle bg-body text-body">
+                    <thead class="table-secondary">
+                        <tr><th>Rubrica</th><th>Fatura Cliente (€)</th><th>Nossa Proposta (€)</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for d in res.det %}
+                        {% if d.c > 0 or d.p == 'P1' %}
+                        <tr>
+                            <td class="fw-bold px-3 text-body">Energia {{d.p}}</td>
+                            <td class="text-body">{{d.c}} kWh x {{d.cu}}€ = <strong class="text-danger">{{d.ct}}€</strong></td>
+                            <td class="text-body">
+                                {{d.c}} kWh x {{d.nu}}€ = <strong class="text-success">{{d.nt}}€</strong>
+                                {% if tipo_ee == 'EN' %}<br><small class="text-body-secondary">(Base: {{d.nu_base}}€ + TAR: {{d.nu_tar}}€)</small>{% endif %}
+                            </td>
+                        </tr>
+                        {% endif %}
                         {% endfor %}
-                    </select>
+                        
+                        <tr>
+                            <td class="fw-bold px-3 text-body">Termo Potência<br><small class="text-body-secondary">{{res.pl}}</small></td>
+                            <td class="text-body">{{res.dias}} dias x {{res.cli_p_u}}€ = <strong class="text-danger">{{res.cli_p}}€</strong></td>
+                            <td class="text-body">{{res.dias}} dias x {{res.nos_p_u}}€ = <strong class="text-success">{{res.nos_p}}€</strong></td>
+                        </tr>
+                        
+                        <tr class="table-group-divider">
+                            <td class="h5 fw-bold text-end text-body">TOTAIS FINAIS:</td>
+                            <td class="h5 text-danger fw-bold">{{res.cli}}€</td>
+                            <td class="h5 text-success fw-bold">{{res.nos}}€</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% if res.poup > 0 %}
+            <div class="alert alert-info border-info shadow mb-3 d-flex align-items-center justify-content-between rounded-3">
+                <div>
+                    <h5 class="fw-bold mb-1 text-info-emphasis"><i class="fa-solid fa-bolt text-warning me-2"></i>Excelente! Poupança de {{ res.poup_anual }}€ na Eletricidade.</h5>
+                    <p class="mb-0 text-body small"><strong>ALERTA CROSS-SELLING:</strong> Aproveite a energia positiva do cliente e pergunte: <em>"O seu negócio também utiliza equipamentos a Gás Natural?"</em></p>
                 </div>
-                <div class="col-md-4"><input type="number" step="0.0001" name="c_pot_b" class="form-control bg-body text-body" placeholder="Base €/dia" value="{{ request.form.get('c_pot_b', '') }}"></div>
-                <div class="col-md-4"><input type="number" step="0.0001" name="c_pot_t" class="form-control bg-body text-body" placeholder="TAR €/dia" value="{{ request.form.get('c_pot_t', '') }}"></div>
+                <button type="button" class="btn btn-info text-white fw-bold px-4 py-2 ms-3 text-nowrap shadow-sm" onclick="window.location.href='/gas' + window.location.search;">
+                    <i class="fa-solid fa-fire me-2"></i>Simular Gás Agora
+                </button>
             </div>
-            {% else %}
-            <div class="row g-2 mb-2">
-                <div class="col-md-3 small fw-bold text-body">kW Ponta</div>
-                <div class="col-md-3"><input type="number" step="0.01" name="bte_ponta_kw" id="bte_ponta" class="form-control border-danger bg-body text-body" placeholder="Total kW" value="{{ request.form.get('bte_ponta_kw', '') }}" onblur="checkBTEPower()" data-bs-toggle="tooltip" title="Potência registada nas horas mais críticas."></div>
-                <div class="col-md-3"><input type="number" step="0.0001" name="c_ponta_b" class="form-control bg-body text-body" placeholder="Base" value="{{ request.form.get('c_ponta_b', '') }}"></div>
-                <div class="col-md-3"><input type="number" step="0.0001" name="c_ponta_t" class="form-control bg-body text-body" placeholder="TAR" value="{{ request.form.get('c_ponta_t', '') }}"></div>
-            </div>
-            <div class="row g-2">
-                <div class="col-md-3 small fw-bold text-body">kW Contratada</div>
-                <div class="col-md-3"><input type="number" step="0.01" name="bte_cont_kw" id="bte_cont" class="form-control border-danger bg-body text-body" placeholder="Total kW" value="{{ request.form.get('bte_cont_kw', '') }}" onblur="checkBTEPower()" data-bs-toggle="tooltip" title="Potência máxima negociada e contratada com o fornecedor."></div>
-                <div class="col-md-3"><input type="number" step="0.0001" name="c_cont_b" class="form-control bg-body text-body" placeholder="Base" value="{{ request.form.get('c_cont_b', '') }}"></div>
-                <div class="col-md-3"><input type="number" step="0.0001" name="c_cont_t" class="form-control bg-body text-body" placeholder="TAR" value="{{ request.form.get('c_cont_t', '') }}"></div>
-            </div>
-            <div id="bte_warning" class="text-danger small mt-2 fw-bold" style="display:none;">⚠️ Aviso: Potências iguais ou inferiores a 41.40 pertencem à BTN.</div>
             {% endif %}
-        </div>
 
-        <div class="col-md-5">
-            <div class="alert alert-success h-100 shadow-sm border border-success">
-                <h5 class="fw-bold">Nossa Proposta (Explicação)</h5>
-                <hr>
-                {% if tipo_ee == 'EN' %}
-                <p>O preço final na Energia Normal (EN) é apresentado <strong>com a TAR adicionada ao Preço Base de Catálogo</strong>. A memória de cálculo abaixo comprova a transparência total desta soma matemática.</p>
-                {% else %}
-                <p>A Energia Verde (EV) <strong>já inclui a TAR na sua estrutura tarifária</strong>, pelo que o valor de base representa diretamente o preço final cobrado.</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-    
-    <button type="submit" class="btn btn-primary btn-lg w-100 mt-4 shadow fw-bold">GERAR COMPARATIVO COMPLETO</button>
-</form>
-
-<div id="resultados-ancora"></div>
-
-{% if res %}
-
-<div class="card mt-4 mb-4 shadow border-dark bg-body-tertiary position-relative">
-    <div class="card-header bg-dark text-white fw-bold d-flex justify-content-between align-items-center">
-        <span>MEMÓRIA DE CÁLCULO ({{ res.prod }})</span>
-        <button class="btn btn-sm btn-outline-light fw-bold shadow-sm" onclick="salvarCenarioAB('{{ res.nos }}', '{{ res.cli }}', '{{ res.poup_anual }}', '{{ res.prod }}')">
-            <i class="fa-solid fa-floppy-disk me-1"></i>Guardar Cenário
-        </button>
-    </div>
-    <div class="card-body p-0">
-        <table class="table table-bordered mb-0 text-center align-middle bg-body text-body">
-            <thead class="table-secondary">
-                <tr><th>Rubrica</th><th>Fatura Cliente (€)</th><th>Nossa Proposta (€)</th></tr>
-            </thead>
-            <tbody>
-                {% for d in res.det %}
-                {% if d.c > 0 or d.p == 'P1' %}
-                <tr>
-                    <td class="fw-bold px-3 text-body">Energia {{d.p}}</td>
-                    <td class="text-body">{{d.c}} kWh x {{d.cu}}€ = <strong class="text-danger">{{d.ct}}€</strong></td>
-                    <td class="text-body">
-                        {{d.c}} kWh x {{d.nu}}€ = <strong class="text-success">{{d.nt}}€</strong>
-                        {% if tipo_ee == 'EN' %}<br><small class="text-body-secondary">(Base: {{d.nu_base}}€ + TAR: {{d.nu_tar}}€)</small>{% endif %}
-                    </td>
-                </tr>
-                {% endif %}
-                {% endfor %}
-                
-                <tr>
-                    <td class="fw-bold px-3 text-body">Termo Potência<br><small class="text-body-secondary">{{res.pl}}</small></td>
-                    <td class="text-body">{{res.dias}} dias x {{res.cli_p_u}}€ = <strong class="text-danger">{{res.cli_p}}€</strong></td>
-                    <td class="text-body">{{res.dias}} dias x {{res.nos_p_u}}€ = <strong class="text-success">{{res.nos_p}}€</strong></td>
-                </tr>
-                
-                <tr class="table-group-divider">
-                    <td class="h5 fw-bold text-end text-body">TOTAIS FINAIS:</td>
-                    <td class="h5 text-danger fw-bold">{{res.cli}}€</td>
-                    <td class="h5 text-success fw-bold">{{res.nos}}€</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-</div>
-
-{% if res.poup > 0 %}
-    <div class="alert alert-info border-info shadow mb-3 d-flex align-items-center justify-content-between rounded-3">
-        <div>
-            <h5 class="fw-bold mb-1 text-info-emphasis"><i class="fa-solid fa-bolt text-warning me-2"></i>Excelente! Poupança de {{ res.poup_anual }}€ na Eletricidade.</h5>
-            <p class="mb-0 text-body small"><strong>ALERTA CROSS-SELLING:</strong> Aproveite a energia positiva do cliente e pergunte: <em>"O seu negócio também utiliza equipamentos a Gás Natural?"</em></p>
-        </div>
-        <button type="button" class="btn btn-info text-white fw-bold px-4 py-2 ms-3 text-nowrap shadow-sm" onclick="window.location.href='/gas' + window.location.search;">
-            <i class="fa-solid fa-fire me-2"></i>Simular Gás Agora
-        </button>
-    </div>
-    {% endif %}
-
-    {% if res.poup > 0 %}
-    {% set perc = ((res.poup / res.cli) * 100) | round(1) if res.cli > 0 else 0 %}
-    <div class="alert pulse-discount border-0 shadow mb-4 text-center rounded-pill">
-        <h3 class="fw-bold mb-0 text-white"><i class="fa-solid fa-fire text-warning me-2"></i>DESCONTO DE {{ perc }}% NA FATURA!</h3>
-    </div>
-    {% endif %}
-
-<div class="row text-center align-items-stretch mb-3">
-    <div class="col-md-3"><div class="card p-3 border-danger shadow-sm bg-body-tertiary h-100"><h6 class="text-body-secondary">Gasto Cliente</h6><h3 class="text-danger">{{ res.cli }}€</h3></div></div>
-    <div class="col-md-3"><div class="card p-3 border-success shadow-sm bg-body-tertiary h-100"><h6 class="text-body-secondary">Nossa Oferta</h6><h3 class="text-success">{{ res.nos }}€</h3></div></div>
-    <div class="col-md-3"><div class="card p-3 bg-primary text-white shadow h-100"><h6 class="text-white-50">Poupança Fatura</h6><h3>{{ res.poup }}€</h3></div></div>
-    <div class="col-md-3">
-        <div class="card p-3 bg-dark text-white shadow h-100 d-flex flex-column justify-content-center">
-            <h6 class="text-white-50 mb-1">Poupança Anual</h6>
-            <h3 class="mb-1">{{ res.poup_anual }}€</h3>
             {% if res.poup > 0 %}
-            <div class="text-danger fw-bold small mt-1 bg-white bg-opacity-10 rounded py-1" data-bs-toggle="tooltip" title="Use isto para criar urgência!">
-                💸 Perdeu {{ (res.poup * 6) | round(2) }}€ em 6 meses
+            {% set perc = ((res.poup / res.cli) * 100) | round(1) if res.cli > 0 else 0 %}
+            <div class="alert pulse-discount border-0 shadow mb-4 text-center rounded-pill">
+                <h3 class="fw-bold mb-0 text-white"><i class="fa-solid fa-fire text-warning me-2"></i>DESCONTO DE {{ perc }}% NA FATURA!</h3>
             </div>
             {% endif %}
-        </div>
-    </div>
-</div>
 
-<div class="text-end mb-4">
-    <button class="btn btn-warning shadow-sm fw-bold px-4 py-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#painelVendas" aria-controls="painelVendas">
-        <i class="fa-solid fa-lightbulb me-2"></i>IDEIAS DE REBATE (ARGUMENTOS)
-    </button>
-</div>
-
-<div class="row mb-4 g-3">
-    <div class="col-md-6">
-        <div class="card shadow-sm border-0 bg-body-tertiary h-100">
-            <div class="card-header bg-info bg-opacity-10 text-info-emphasis fw-bold border-bottom-0"><i class="fa-solid fa-chart-pie me-2"></i>Desconstrutor de "Impostos" (TAR)</div>
-            <div class="card-body d-flex align-items-center">
-                <div style="width: 110px; height: 110px; flex-shrink: 0;"><canvas id="donutImpostos"></canvas></div>
-                <div class="ms-3 small">
-                    <p class="mb-1 text-body-secondary">Se o cliente refilar que <em>"a energia em Portugal é só roubar em taxas"</em>, leia isto:</p>
-                    <p class="fst-italic fw-bold text-body mb-0">"Sr(a) Cliente, compreendo a frustração. Mas repare, cerca de 40% da fatura são Taxas da ERSE e Redes, iguais para todos. Eu não lhe posso mexer nos impostos, mas estou a dar-lhe um desconto brutal nos 60% da Energia que é o que eu controlo!"</p>
+        <div class="row text-center align-items-stretch mb-3">
+            <div class="col-md-3"><div class="card p-3 border-danger shadow-sm bg-body-tertiary h-100"><h6 class="text-body-secondary">Gasto Cliente</h6><h3 class="text-danger">{{ res.cli }}€</h3></div></div>
+            <div class="col-md-3"><div class="card p-3 border-success shadow-sm bg-body-tertiary h-100"><h6 class="text-body-secondary">Nossa Oferta</h6><h3 class="text-success">{{ res.nos }}€</h3></div></div>
+            <div class="col-md-3"><div class="card p-3 bg-primary text-white shadow h-100"><h6 class="text-white-50">Poupança Fatura</h6><h3>{{ res.poup }}€</h3></div></div>
+            <div class="col-md-3">
+                <div class="card p-3 bg-dark text-white shadow h-100 d-flex flex-column justify-content-center">
+                    <h6 class="text-white-50 mb-1">Poupança Anual</h6>
+                    <h3 class="mb-1">{{ res.poup_anual }}€</h3>
+                    {% if res.poup > 0 %}
+                    <div class="text-danger fw-bold small mt-1 bg-white bg-opacity-10 rounded py-1" data-bs-toggle="tooltip" title="Use isto para criar urgência!">
+                        💸 Perdeu {{ (res.poup * 6) | round(2) }}€ em 6 meses
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
-    </div>
 
-    <div class="col-md-6">
-        <div class="card shadow-sm border-warning border-opacity-50 bg-body-tertiary h-100">
-            <div class="card-header bg-warning bg-opacity-10 text-warning-emphasis fw-bold border-bottom-0"><i class="fa-solid fa-handshake-angle me-2"></i>A Alavanca 24 Meses</div>
-            <div class="card-body d-flex flex-column justify-content-center">
-                <p class="mb-2 text-body-secondary small">Se o cliente disser <em>"Isso é só para me apanhar, para o ano aumentam-me"</em>, use esta carta na manga:</p>
-                <div class="p-2 bg-body rounded border border-warning border-opacity-50 text-body small fst-italic shadow-sm mb-0">
-                    "Tem medo das oscilações? Eu tenho aqui uma campanha especial em que por uma diferença de cêntimos lhe tranco este excelente preço por DOIS anos, em vez de um. Garante a paz de espírito e o seu negócio agradece."
+        <div class="text-end mb-4">
+            <button class="btn btn-warning shadow-sm fw-bold px-4 py-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#painelVendas" aria-controls="painelVendas">
+                <i class="fa-solid fa-lightbulb me-2"></i>IDEIAS DE REBATE (ARGUMENTOS)
+            </button>
+        </div>
+
+        <div class="row mb-4 g-3">
+            <div class="col-md-6">
+                <div class="card shadow-sm border-0 bg-body-tertiary h-100">
+                    <div class="card-header bg-info bg-opacity-10 text-info-emphasis fw-bold border-bottom-0"><i class="fa-solid fa-chart-pie me-2"></i>Desconstrutor de "Impostos" (TAR)</div>
+                    <div class="card-body d-flex align-items-center">
+                        <div style="width: 110px; height: 110px; flex-shrink: 0;"><canvas id="donutImpostos"></canvas></div>
+                        <div class="ms-3 small">
+                            <p class="mb-1 text-body-secondary">Se o cliente refilar que <em>"a energia em Portugal é só roubar em taxas"</em>, leia isto:</p>
+                            <p class="fst-italic fw-bold text-body mb-0">"Sr(a) Cliente, compreendo a frustração. Mas repare, cerca de 40% da fatura são Taxas da ERSE e Redes, iguais para todos. Eu não lhe posso mexer nos impostos, mas estou a dar-lhe um desconto brutal nos 60% da Energia que é o que eu controlo!"</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card shadow-sm border-warning border-opacity-50 bg-body-tertiary h-100">
+                    <div class="card-header bg-warning bg-opacity-10 text-warning-emphasis fw-bold border-bottom-0"><i class="fa-solid fa-handshake-angle me-2"></i>A Alavanca 24 Meses</div>
+                    <div class="card-body d-flex flex-column justify-content-center">
+                        <p class="mb-2 text-body-secondary small">Se o cliente disser <em>"Isso é só para me apanhar, para o ano aumentam-me"</em>, use esta carta na manga:</p>
+                        <div class="p-2 bg-body rounded border border-warning border-opacity-50 text-body small fst-italic shadow-sm mb-0">
+                            "Tem medo das oscilações? Eu tenho aqui uma campanha especial em que por uma diferença de cêntimos lhe tranco este excelente preço por DOIS anos, em vez de um. Garante a paz de espírito e o seu negócio agradece."
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-</div>
 
-<div class="card shadow-sm border-0 bg-body-tertiary">
-    <div class="card-body">
-        <canvas id="graficoEle" height="80"></canvas>
-    </div>
-</div>
-
-<div class="offcanvas offcanvas-end bg-body shadow-lg" tabindex="-1" id="painelVendas" aria-labelledby="painelVendasLabel" style="width: 450px;">
-    <div class="offcanvas-header bg-warning bg-opacity-10 border-bottom border-warning">
-        <h5 class="offcanvas-title fw-bold text-warning-emphasis" id="painelVendasLabel"><i class="fa-solid fa-headset me-2"></i>Assistente de Fecho</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-    </div>
-    <div class="offcanvas-body">
-        {% set fornecedor = request.form.get('fornecedor', 'Outro') %}
-        <div class="mb-4">
-            <h6 class="fw-bold text-body border-bottom pb-2"><i class="fa-solid fa-crosshairs text-danger me-2"></i>Alvo: {{ fornecedor }}</h6>
-            <div class="p-3 bg-danger bg-opacity-10 rounded text-body border border-danger border-opacity-25 small">
-                {% if fornecedor == 'Endesa' %}<strong>⚠️ Serviço 'Facilita':</strong> A Endesa costuma cobrar ~6€/mês por este serviço oculto. Pergunte: <em>"Tem algum serviço de assistência técnica na fatura?"</em>{% elif fornecedor == 'EDP' %}<strong>⚠️ Packs Living:</strong> A EDP insere "Packs Living" ou "Funciona". Confirme se o cliente usa isso. A nossa fatura é limpa e transparente.{% elif fornecedor == 'Iberdrola' %}<strong>⚠️ Assistência Urgência:</strong> Têm serviços cobrados à parte. Ataque dizendo que a nossa oferta foca-se naquilo que ele realmente consome.{% elif fornecedor == 'Galp' %}<strong>⚠️ Descontos em Cartão:</strong> A Galp foca-se no "Cartão Continente". Argumente: <em>"Nós damos o desconto direto na fatura bancária, não em pontos."</em>{% else %}Alerte o cliente para verificar sempre as "Outras Prestações" e "Serviços Adicionais" na segunda página da fatura atual.{% endif %}
+        <div class="card shadow-sm border-0 bg-body-tertiary mb-5">
+            <div class="card-body">
+                <canvas id="graficoEle" height="80"></canvas>
             </div>
         </div>
 
-        <div class="mb-4">
-            <h6 class="fw-bold text-body border-bottom pb-2"><i class="fa-solid fa-shield-halved text-success me-2"></i>Quebra-Gelo (Objeções Comuns)</h6>
-            <div class="accordion accordion-flush border rounded border-secondary-subtle" id="accordionObjections">
-              <div class="accordion-item bg-body">
-                <h2 class="accordion-header"><button class="accordion-button collapsed fw-bold small py-2 bg-body-secondary text-body" type="button" data-bs-toggle="collapse" data-bs-target="#obj1">"Estou fidelizado e vou pagar multa."</button></h2>
-                <div id="obj1" class="accordion-collapse collapse" data-bs-parent="#accordionObjections"><div class="accordion-body small bg-success bg-opacity-10 text-body fst-italic">"No mercado livre para empresas a multa dilui-se na poupança em apenas 2 meses. O resto do ano é lucro puro na conta do seu negócio!"</div></div>
-              </div>
-              <div class="accordion-item bg-body">
-                <h2 class="accordion-header"><button class="accordion-button collapsed fw-bold small py-2 bg-body-secondary text-body" type="button" data-bs-toggle="collapse" data-bs-target="#obj2">"Não tenho tempo para tratar de papeladas."</button></h2>
-                <div id="obj2" class="accordion-collapse collapse" data-bs-parent="#accordionObjections"><div class="accordion-body small bg-success bg-opacity-10 text-body fst-italic">"É exatamente por isso que liguei. A transição é 100% tratada por mim, por via telefónica, sem interrupção de luz ou trocas de contador."</div></div>
-              </div>
+        <div class="offcanvas offcanvas-end bg-body shadow-lg" tabindex="-1" id="painelVendas" aria-labelledby="painelVendasLabel" style="width: 450px;">
+            <div class="offcanvas-header bg-warning bg-opacity-10 border-bottom border-warning">
+                <h5 class="offcanvas-title fw-bold text-warning-emphasis" id="painelVendasLabel"><i class="fa-solid fa-headset me-2"></i>Assistente de Fecho</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body">
+                {% set fornecedor = request.form.get('fornecedor', 'Outro') %}
+                <div class="mb-4">
+                    <h6 class="fw-bold text-body border-bottom pb-2"><i class="fa-solid fa-crosshairs text-danger me-2"></i>Alvo: {{ fornecedor }}</h6>
+                    <div class="p-3 bg-danger bg-opacity-10 rounded text-body border border-danger border-opacity-25 small">
+                        {% if fornecedor == 'Endesa' %}<strong>⚠️ Serviço 'Facilita':</strong> A Endesa costuma cobrar ~6€/mês por este serviço oculto. Pergunte: <em>"Tem algum serviço de assistência técnica na fatura?"</em>{% elif fornecedor == 'EDP' %}<strong>⚠️ Packs Living:</strong> A EDP insere "Packs Living" ou "Funciona". Confirme se o cliente usa isso. A nossa fatura é limpa e transparente.{% elif fornecedor == 'Iberdrola' %}<strong>⚠️ Assistência Urgência:</strong> Têm serviços cobrados à parte. Ataque dizendo que a nossa oferta foca-se naquilo que ele realmente consome.{% elif fornecedor == 'Galp' %}<strong>⚠️ Descontos em Cartão:</strong> A Galp foca-se no "Cartão Continente". Argumente: <em>"Nós damos o desconto direto na fatura bancária, não em pontos."</em>{% else %}Alerte o cliente para verificar sempre as "Outras Prestações" e "Serviços Adicionais" na segunda página da fatura atual.{% endif %}
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <h6 class="fw-bold text-body border-bottom pb-2"><i class="fa-solid fa-shield-halved text-success me-2"></i>Quebra-Gelo (Objeções Comuns)</h6>
+                    <div class="accordion accordion-flush border rounded border-secondary-subtle" id="accordionObjections">
+                      <div class="accordion-item bg-body">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed fw-bold small py-2 bg-body-secondary text-body" type="button" data-bs-toggle="collapse" data-bs-target="#obj1">"Estou fidelizado e vou pagar multa."</button></h2>
+                        <div id="obj1" class="accordion-collapse collapse" data-bs-parent="#accordionObjections"><div class="accordion-body small bg-success bg-opacity-10 text-body fst-italic">"No mercado livre para empresas a multa dilui-se na poupança em apenas 2 meses. O resto do ano é lucro puro na conta do seu negócio!"</div></div>
+                      </div>
+                      <div class="accordion-item bg-body">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed fw-bold small py-2 bg-body-secondary text-body" type="button" data-bs-toggle="collapse" data-bs-target="#obj2">"Não tenho tempo para tratar de papeladas."</button></h2>
+                        <div id="obj2" class="accordion-collapse collapse" data-bs-parent="#accordionObjections"><div class="accordion-body small bg-success bg-opacity-10 text-body fst-italic">"É exatamente por isso que liguei. A transição é 100% tratada por mim, por via telefónica, sem interrupção de luz ou trocas de contador."</div></div>
+                      </div>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <h6 class="fw-bold text-body border-bottom pb-2"><i class="fa-solid fa-comment-dots text-primary me-2"></i>Script de Fecho ({{ segmento }})</h6>
+                    <div class="p-3 bg-body-secondary rounded fst-italic text-body shadow-sm small border border-secondary-subtle">
+                        {% if segmento == 'BTN' %}"Sr(a). Cliente, acabei de analisar a sua fatura e tenho excelentes notícias! Consigo reduzir o seu custo de imediato garantindo uma poupança de <strong>{{ res.poup_anual }}€ por ano</strong>. Na prática, é como se lhe oferecêssemos energia de borla. Vamos avançar com esta redução hoje mesmo?"{% else %}"Sr(a). Cliente, analisei a sua estrutura de custos. Esta tarifa otimiza os seus custos operacionais no horário de Ponta e Cheias, reduzindo a carga fiscal da sua produção em <strong>{{ res.poup_anual }}€ anuais</strong>. Posso dar início ao processo de proteção da sua tarifa para blindar o seu orçamento?"{% endif %}
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="mb-4">
-            <h6 class="fw-bold text-body border-bottom pb-2"><i class="fa-solid fa-comment-dots text-primary me-2"></i>Script de Fecho ({{ segmento }})</h6>
-            <div class="p-3 bg-body-secondary rounded fst-italic text-body shadow-sm small border border-secondary-subtle">
-                {% if segmento == 'BTN' %}"Sr(a). Cliente, acabei de analisar a sua fatura e tenho excelentes notícias! Consigo reduzir o seu custo de imediato garantindo uma poupança de <strong>{{ res.poup_anual }}€ por ano</strong>. Na prática, é como se lhe oferecêssemos energia de borla. Vamos avançar com esta redução hoje mesmo?"{% else %}"Sr(a). Cliente, analisei a sua estrutura de custos. Esta tarifa otimiza os seus custos operacionais no horário de Ponta e Cheias, reduzindo a carga fiscal da sua produção em <strong>{{ res.poup_anual }}€ anuais</strong>. Posso dar início ao processo de proteção da sua tarifa para blindar o seu orçamento?"{% endif %}
+        <script>
+            var ctx = document.getElementById('graficoEle').getContext('2d');
+            var chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Gasto Cliente Atual', 'Nossa Proposta ({{ res.prod }})'],
+                    datasets: [{ label: 'Custo Mensal (€)', data: [{{ res.cli|replace(',', '.') }}, {{ res.nos|replace(',', '.') }}], backgroundColor: ['rgba(220, 53, 69, 0.85)', 'rgba(25, 135, 84, 0.85)'], borderColor: ['#dc3545', '#198754'], borderWidth: 1, borderRadius: 4 }]
+                },
+                options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+            });
+
+            var ctxDonut = document.getElementById('donutImpostos').getContext('2d');
+            new Chart(ctxDonut, {
+                type: 'doughnut',
+                data: { labels: ['Energia Real', 'Taxas (TAR)'], datasets: [{ data: [60, 40], backgroundColor: ['#0d6efd', '#dc3545'], borderWidth: 0 }] },
+                options: { plugins: { legend: { display: false }, tooltip: { enabled: false } }, cutout: '70%', responsive: true, maintainAspectRatio: false }
+            });
+
+            document.getElementById('resultados-ancora').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        </script>
+        {% endif %}
+
+    </div> <div class="col-xl-3">
+        <div class="sticky-top" style="top: 100px; z-index: 1000;">
+            <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
+                <h5 class="text-primary fw-bold mb-0"><i class="fa-solid fa-code-compare me-2"></i>Comparador (Até 5)</h5>
+            </div>
+            
+            <div id="cenarios-container"></div>
+            
+            <div class="text-center mt-2 d-none" id="btn-limpar-cenarios">
+                <button class="btn btn-sm btn-outline-danger w-100 fw-bold shadow-sm" onclick="limparCenariosSidebar()"><i class="fa-solid fa-trash me-1"></i>Limpar Todos</button>
+            </div>
+            
+            <div id="cenarios-empty" class="text-muted small text-center p-4 border border-dashed border-secondary rounded bg-body-tertiary">
+                <i class="fa-solid fa-layer-group fs-2 mb-2 text-secondary opacity-50"></i><br>
+                Nenhum cenário guardado.<br>Simule e clique em <strong>"Fixar Cenário"</strong> para alinhar as propostas aqui.
             </div>
         </div>
-    </div>
-</div>
+    </div> 
+</div> 
 
 <script>
-    var ctx = document.getElementById('graficoEle').getContext('2d');
-    var chart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: ['Gasto Cliente Atual', 'Nossa Proposta ({{ res.prod }})'],
-            datasets: [{ label: 'Custo Mensal (€)', data: [{{ res.cli|replace(',', '.') }}, {{ res.nos|replace(',', '.') }}], backgroundColor: ['rgba(220, 53, 69, 0.85)', 'rgba(25, 135, 84, 0.85)'], borderColor: ['#dc3545', '#198754'], borderWidth: 1, borderRadius: 4 }]
-        },
-        options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    // ========================================================
+    // EASTER EGG (SNIPER DE TARIFAS)
+    // ========================================================
+    let secretCode = '';
+    document.addEventListener('keydown', function(e) {
+        secretCode += e.key.toLowerCase();
+        if (secretCode.length > 6) secretCode = secretCode.slice(-6);
+        if (secretCode === 'sniper') {
+            const btn = document.getElementById('btn-sniper');
+            if(btn) {
+                btn.classList.remove('d-none');
+                btn.classList.add('fade-in');
+            }
+        }
     });
 
-    var ctxDonut = document.getElementById('donutImpostos').getContext('2d');
-    new Chart(ctxDonut, {
-        type: 'doughnut',
-        data: { labels: ['Energia Real', 'Taxas (TAR)'], datasets: [{ data: [60, 40], backgroundColor: ['#0d6efd', '#dc3545'], borderWidth: 0 }] },
-        options: { plugins: { legend: { display: false }, tooltip: { enabled: false } }, cutout: '70%', responsive: true, maintainAspectRatio: false }
-    });
+    async function acionarSniper() {
+        const btn = document.getElementById('btn-sniper');
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>A Analisar...';
+        btn.disabled = true;
 
-    document.getElementById('resultados-ancora').scrollIntoView({ behavior: 'smooth', block: 'start' });
-</script>
-{% endif %}
+        const formData = new FormData(document.getElementById('eleForm'));
+        try {
+            const response = await fetch('/api/sniper/ele', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            
+            if (data.error) {
+                alert("Erro: " + data.error);
+                return;
+            }
 
-<script>
-    // Lógica do A/B Testing
-    function salvarCenarioAB(nos, cli, poupAno, prod) {
-        const cenario = { nos: nos, cli: cli, ano: poupAno, prod: prod };
-        sessionStorage.setItem('ab_cenario_ele', JSON.stringify(cenario));
-        mostrarCenarioAB();
-        window.scrollTo({ top: 0, behavior: 'smooth' }); // Sobe para ver a barra
-    }
+            const resultsDiv = document.getElementById('sniper-results');
+            document.getElementById('sniper-cli-total').innerText = data.cli_total;
+            resultsDiv.innerHTML = '';
 
-    function limparCenarioAB() {
-        sessionStorage.removeItem('ab_cenario_ele');
-        document.getElementById('ab-test-banner').classList.add('d-none');
-    }
+            const medallas = ['🥇', '🥈', '🥉'];
+            const cores = ['success', 'info', 'primary'];
+            
+            data.top3.forEach((oferta, index) => {
+                const card = document.createElement('div');
+                card.className = `card shadow-sm border-${cores[index]} mb-3`;
+                card.innerHTML = `
+                    <div class="card-header bg-${cores[index]} bg-opacity-10 fw-bold text-${cores[index]}-emphasis border-bottom-0 pb-1">
+                        ${medallas[index]} Top ${index + 1}
+                    </div>
+                    <div class="card-body py-2">
+                        <h6 class="fw-bold mb-2 text-truncate" title="${oferta.nome}">${oferta.nome}</h6>
+                        <div class="d-flex justify-content-between text-body small">
+                            <span>O nosso preço:</span> <strong class="text-success">${oferta.nos_total}€</strong>
+                        </div>
+                        <div class="d-flex justify-content-between text-body small mt-1 pt-1 border-top">
+                            <span>Poupança Anual:</span> <strong class="text-${cores[index]} fw-bold fs-6">${oferta.poup_anual}€</strong>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-${cores[index]} w-100 mt-2 fw-bold" onclick="selecionarTop3(${oferta.idx})">Simular Esta Tarifa</button>
+                    </div>
+                `;
+                resultsDiv.appendChild(card);
+            });
 
-    function mostrarCenarioAB() {
-        const cenarioStr = sessionStorage.getItem('ab_cenario_ele');
-        if (cenarioStr) {
-            const c = JSON.parse(cenarioStr);
-            document.getElementById('ab-nos').innerText = c.nos;
-            document.getElementById('ab-cli').innerText = c.cli;
-            document.getElementById('ab-ano').innerText = c.ano;
-            document.getElementById('ab-prod').innerText = c.prod;
-            document.getElementById('ab-test-banner').classList.remove('d-none');
+            var myModal = new bootstrap.Modal(document.getElementById('modalSniper'));
+            myModal.show();
+        } catch (e) {
+            alert("Erro ao conectar ao motor Sniper.");
+        } finally {
+            btn.innerHTML = '<i class="fa-solid fa-bullseye me-2"></i>Top 3 Automático';
+            btn.disabled = false;
         }
     }
 
-    // Inicialização da Página
+    function selecionarTop3(idx) {
+        document.getElementsByName('prod_idx')[0].value = idx;
+        const modalEl = document.getElementById('modalSniper');
+        var modal = bootstrap.Modal.getInstance(modalEl);
+        modal.hide();
+        document.getElementById('eleForm').submit();
+    }
+
+    // ========================================================
+    // LÓGICA DO SIDEBAR DE CENÁRIOS
+    // ========================================================
+    function adicionarCenarioSidebar(nos, cli, poupAno, prod) {
+        let cenarios = JSON.parse(sessionStorage.getItem('sidebar_cenarios_ele') || '[]');
+        if (cenarios.length >= 5) {
+            alert("⚠️ Limite máximo de 5 comparações atingido! Apague um cenário na barra lateral para adicionar outro.");
+            return;
+        }
+        cenarios.push({ id: Date.now(), nos: nos, cli: cli, ano: poupAno, prod: prod });
+        sessionStorage.setItem('sidebar_cenarios_ele', JSON.stringify(cenarios));
+        renderizarCenariosSidebar();
+    }
+
+    function removerCenarioSidebar(id) {
+        let cenarios = JSON.parse(sessionStorage.getItem('sidebar_cenarios_ele') || '[]');
+        cenarios = cenarios.filter(c => c.id !== id);
+        sessionStorage.setItem('sidebar_cenarios_ele', JSON.stringify(cenarios));
+        renderizarCenariosSidebar();
+    }
+
+    function limparCenariosSidebar() {
+        sessionStorage.removeItem('sidebar_cenarios_ele');
+        renderizarCenariosSidebar();
+    }
+
+    function renderizarCenariosSidebar() {
+        let cenarios = JSON.parse(sessionStorage.getItem('sidebar_cenarios_ele') || '[]');
+        const container = document.getElementById('cenarios-container');
+        const empty = document.getElementById('cenarios-empty');
+        const btnLimpar = document.getElementById('btn-limpar-cenarios');
+        
+        container.innerHTML = '';
+        
+        if (cenarios.length === 0) {
+            empty.classList.remove('d-none');
+            btnLimpar.classList.add('d-none');
+        } else {
+            empty.classList.add('d-none');
+            btnLimpar.classList.remove('d-none');
+            
+            cenarios.forEach((c, index) => {
+                const card = document.createElement('div');
+                card.className = 'card shadow-sm border-warning mb-3 position-relative bg-body fade-in';
+                card.innerHTML = `
+                    <button type="button" class="btn-close position-absolute top-0 end-0 m-2" style="font-size: 0.6rem;" onclick="removerCenarioSidebar(${c.id})"></button>
+                    <div class="card-header py-1 px-2 bg-warning text-dark fw-bold" style="font-size: 0.8rem;">Cenário ${index + 1}</div>
+                    <div class="card-body p-2" style="font-size: 0.85rem;">
+                        <div class="text-truncate text-muted small mb-2 fw-bold" title="${c.prod}">${c.prod}</div>
+                        <div class="d-flex justify-content-between mb-1 border-bottom pb-1">
+                            <span>Proposta:</span> <strong class="text-success">${c.nos}€</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1 border-bottom pb-1">
+                            <span>Cliente:</span> <strong class="text-danger">${c.cli}€</strong>
+                        </div>
+                        <div class="d-flex justify-content-between pt-1 text-primary">
+                            <span>Poup. Anual:</span> <strong>${c.ano}€</strong>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+    }
+
     document.addEventListener("DOMContentLoaded", function() {
-        mostrarCenarioAB();
+        renderizarCenariosSidebar();
         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
         tooltipTriggerList.map(function (tooltipTriggerEl) { return new bootstrap.Tooltip(tooltipTriggerEl); });
     });

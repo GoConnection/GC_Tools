@@ -1,0 +1,54 @@
+{
+  "broadcast": {
+    "id": "bcast-5541-abc",
+    "text": "Bom dia equipa! Hoje a meta são 5 contratos BTE. O prémio diário está ativo!",
+    "timestamp": "09:00"
+  },
+  "messages": [
+    {
+      "id": "msg-1111-aaa",
+      "token_id": "Operador_Joao",
+      "sender": "Operador_Joao",
+      "text": "Chefe, estou com um cliente da Galp que tem 10% de desconto. Conseguimos bater isto no BTE?",
+      "timestamp": "10:15",
+      "is_read_admin": true,
+      "is_read_op": true
+    },
+    {
+      "id": "msg-2222-bbb",
+      "token_id": "Operador_Joao",
+      "sender": "Admin",
+      "text": "Sim, aplica o tarifário 'Tri-Horário Especial'. A poupança vai dar uns 15% limpos.",
+      "timestamp": "10:18",
+      "is_read_admin": true,
+      "is_read_op": true
+    },
+    {
+      "id": "msg-3333-ccc",
+      "token_id": "Operador_Joao",
+      "sender": "Operador_Joao",
+      "text": "Top, ele aceitou! Já vou passar a lead para a coluna 'Enviar Contrato'.",
+      "timestamp": "10:22",
+      "is_read_admin": false,
+      "is_read_op": true
+    },
+    {
+      "id": "msg-4444-ddd",
+      "token_id": "Operadora_Maria",
+      "sender": "Operadora_Maria",
+      "text": "Preciso de ajuda urgente. O cliente está a perguntar se assumimos a multa de fidelização da Endesa (faltam 3 meses).",
+      "timestamp": "11:05",
+      "is_read_admin": false,
+      "is_read_op": true
+    },
+    {
+      "id": "msg-5555-eee",
+      "token_id": "Operador_Tiago",
+      "sender": "Admin",
+      "text": "Tiago, não te esqueças de ligar àquele restaurante de ontem. O agendamento está a piscar para as 11h30.",
+      "timestamp": "11:10",
+      "is_read_admin": true,
+      "is_read_op": false
+    }
+  ]
+}

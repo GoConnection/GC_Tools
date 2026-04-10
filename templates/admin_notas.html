@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row mb-4 align-items-center">
+    <div class="col-md-8">
+        <h2 class="text-primary fw-bold mb-0"><i class="fa-solid fa-users-gear me-2"></i>Gestão Global de Leads (CRM)</h2>
+        <p class="text-muted small mb-0 mt-1">Visualize os funis de vendas de todos os operadores e exporte os dados.</p>
+    </div>
+    <div class="col-md-4 text-md-end mt-3 mt-md-0">
+        <a href="{{ url_for('export_leads') }}" class="btn btn-success fw-bold shadow">
+            <i class="fa-solid fa-file-excel me-2"></i>Exportar Excel (CSV)
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 bg-body-tertiary">
+    <div class="card-body p-4">
+        {% if all_notes and all_notes|length > 0 %}
+            <div class="accordion shadow-sm" id="accordionOperadores">
+                {% for token, notas in all_notes.items() %}
+                    {% if notas|length > 0 %}
+                    <div class="accordion-item bg-body border-secondary-subtle">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed fw-bold text-body" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_{{ loop.index }}">
+                                <i class="fa-solid fa-headset text-primary me-2"></i> Operador (Token): <span class="ms-2 text-primary">{{ token }}</span> 
+                                <span class="badge bg-secondary ms-auto rounded-pill">{{ notas|length }} leads</span>
+                            </button>
+                        </h2>
+                        <div id="collapse_{{ loop.index }}" class="accordion-collapse collapse" data-bs-parent="#accordionOperadores">
+                            <div class="accordion-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover table-striped mb-0 text-body align-middle" style="font-size: 0.9rem;">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Estado</th>
+                                                <th>Título</th>
+                                                <th>NIPC</th>
+                                                <th>Telefone</th>
+                                                <th>Detalhes</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for nota in notas %}
+                                            <tr>
+                                                <td style="width: 120px;">
+                                                    {% if nota.status == 'lead' %}
+                                                        <span class="badge bg-danger">🔴 Lead Fria</span>
+                                                    {% elif nota.status == 'negociacao' %}
+                                                        <span class="badge bg-warning text-dark">🟡 Em Negociação</span>
+                                                    {% elif nota.status == 'fechado' %}
+                                                        <span class="badge bg-success">🟢 Fechado</span>
+                                                    {% elif nota.status == 'contrato' %}
+                                                        <span class="badge" style="background-color: #6f42c1;">🟣 Env. Contrato</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">Indefinido</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="fw-bold">{{ nota.title }}<br><small class="text-muted fw-normal">{{ nota.subtitle }}</small></td>
+                                                <td>{{ nota.nipc }}</td>
+                                                <td>{{ nota.phone }}</td>
+                                                <td style="max-width: 300px;">
+                                                    <div class="text-truncate" title="{{ nota.desc }}">{{ nota.desc }}</div>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center py-5 text-muted">
+                <i class="fa-solid fa-folder-open fs-1 mb-3 opacity-50"></i>
+                <h5>Nenhum dado registado ainda.</h5>
+                <p class="small">Assim que os operadores começarem a gravar notas no simulador, elas aparecerão aqui separadas por token.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
