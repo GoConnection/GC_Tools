@@ -3,6 +3,9 @@ import secrets
 import sys
 import json
 import uuid
+import csv
+import io
+import datetime
 
 from flask import (
     Flask,
@@ -38,10 +41,7 @@ from msal_auth import (
 app = Flask(__name__)
 app.secret_key = "energia_mother_v50_excel_importer"
 
-
 class PrefixStripMiddleware:
-    """Strip a configured URL prefix from PATH_INFO for IIS virtual directories."""
-
     def __init__(self, wsgi_app, prefix: str):
         self.wsgi_app = wsgi_app
         self.prefix = (prefix or "").strip().rstrip("/")
@@ -58,7 +58,6 @@ class PrefixStripMiddleware:
             environ["SCRIPT_NAME"] = self.prefix
         return self.wsgi_app(environ, start_response)
 
-
 _path_prefix = os.environ.get("GCTOOLS_PATH_PREFIX")
 if _path_prefix:
     app.wsgi_app = PrefixStripMiddleware(app.wsgi_app, _path_prefix)
@@ -69,14 +68,10 @@ except KeyVaultConfigurationError as e:
     sys.stderr.write(f"Key Vault configuration error: {e}\n")
     raise SystemExit(1) from e
 
-if os.environ.get("GCTOOLS_BEARER_TOKEN"):
-    app.config["GCTOOLS_BEARER_TOKEN"] = os.environ["GCTOOLS_BEARER_TOKEN"].strip()
-if os.environ.get("MSAL_CLIENT_ID"):
-    app.config["MSAL_CLIENT_ID"] = os.environ["MSAL_CLIENT_ID"].strip()
-if os.environ.get("MSAL_CLIENT_SECRET"):
-    app.config["MSAL_CLIENT_SECRET"] = os.environ["MSAL_CLIENT_SECRET"].strip()
-if os.environ.get("MSAL_TENANT_ID"):
-    app.config["MSAL_TENANT_ID"] = os.environ["MSAL_TENANT_ID"].strip()
+if os.environ.get("GCTOOLS_BEARER_TOKEN"): app.config["GCTOOLS_BEARER_TOKEN"] = os.environ["GCTOOLS_BEARER_TOKEN"].strip()
+if os.environ.get("MSAL_CLIENT_ID"): app.config["MSAL_CLIENT_ID"] = os.environ["MSAL_CLIENT_ID"].strip()
+if os.environ.get("MSAL_CLIENT_SECRET"): app.config["MSAL_CLIENT_SECRET"] = os.environ["MSAL_CLIENT_SECRET"].strip()
+if os.environ.get("MSAL_TENANT_ID"): app.config["MSAL_TENANT_ID"] = os.environ["MSAL_TENANT_ID"].strip()
 
 register_access_control(app)
 
@@ -99,96 +94,56 @@ def get_config():
             for ee in ['EN', 'EV']:
                 if 'produtos' in cfg['EE_CONFIG'][seg][ee]:
                     cfg['EE_CONFIG'][seg][ee]['produtos'].sort(key=lambda x: safe_int(x.get('ordem', 999)))
-    except Exception:
-        pass
+    except Exception: pass
     return cfg
 
-
 def _apply_electricity_tar_from_form(cfg):
-    """Update BTN/BTE EN TAR values from posted fields only (omitted fields keep DB-loaded values)."""
     t_en = cfg['BTN']['EN']['tar']
     v = request.form.get("tar_btn_SIM_p1")
-    if v is not None and str(v).strip() != '':
-        t_en['SIM']['p1'] = safe_float(v)
+    if v is not None and str(v).strip() != '': t_en['SIM']['p1'] = safe_float(v)
     for fk, tk in [("tar_btn_BIH_p2", "p2"), ("tar_btn_BIH_p3", "p3")]:
         v = request.form.get(fk)
-        if v is not None and str(v).strip() != '':
-            t_en['BIH'][tk] = safe_float(v)
+        if v is not None and str(v).strip() != '': t_en['BIH'][tk] = safe_float(v)
     for fk, tk in [("tar_btn_TRI_p1", "p1"), ("tar_btn_TRI_p2", "p2"), ("tar_btn_TRI_p3", "p3")]:
         v = request.form.get(fk)
-        if v is not None and str(v).strip() != '':
-            t_en['TRI'][tk] = safe_float(v)
+        if v is not None and str(v).strip() != '': t_en['TRI'][tk] = safe_float(v)
     tet = cfg['BTE']['EN']['tar']['TETRA']
     for i in range(1, 5):
         fk = f"tar_bte_p{i}"
         v = request.form.get(fk)
-        if v is not None and str(v).strip() != '':
-            tet[f'p{i}'] = safe_float(v)
-
+        if v is not None and str(v).strip() != '': tet[f'p{i}'] = safe_float(v)
 
 @app.route("/login")
 def login():
-    if session.get("admin_logged_in"):
-        return redirect(url_for("index"))
+    if session.get("admin_logged_in"): return redirect(url_for("index"))
     state = secrets.token_urlsafe(32)
     session["msal_state"] = state
-    redirect_uri = get_msal_redirect_uri()
-    auth_url = get_authorization_url(app, redirect_uri, state)
+    auth_url = get_authorization_url(app, get_msal_redirect_uri(), state)
     return redirect(auth_url)
-
 
 @app.route("/auth/callback")
 def auth_callback():
-    if request.args.get("error"):
-        return Response(
-            "Microsoft sign-in was cancelled or denied.",
-            status=403,
-            mimetype="text/plain",
-        )
+    if request.args.get("error"): return Response("Microsoft sign-in cancelled.", status=403, mimetype="text/plain")
     state = request.args.get("state")
-    if not state or state != session.get("msal_state"):
-        return Response(
-            "Invalid sign-in state. Open /login again.",
-            status=403,
-            mimetype="text/plain",
-        )
+    if not state or state != session.get("msal_state"): return Response("Invalid state.", status=403, mimetype="text/plain")
     session.pop("msal_state", None)
     code = request.args.get("code")
-    if not code:
-        return Response(
-            "Missing authorization code.",
-            status=403,
-            mimetype="text/plain",
-        )
-    redirect_uri = get_msal_redirect_uri()
-    result = acquire_token_by_auth_code(app, code, redirect_uri)
+    if not code: return Response("Missing code.", status=403, mimetype="text/plain")
+    result = acquire_token_by_auth_code(app, code, get_msal_redirect_uri())
     email = email_from_id_token_claims(result)
-    if not email:
-        return Response(
-            "Could not read email from the Microsoft account (id token).",
-            status=403,
-            mimetype="text/plain",
-        )
-    if not is_email_in_gctools_admins(email):
-        return Response(
-            "This account is not in vw_GCTools_Admins and cannot use admin features.",
-            status=403,
-            mimetype="text/plain",
-        )
+    if not email: return Response("Could not read email.", status=403, mimetype="text/plain")
+    if not is_email_in_gctools_admins(email): return Response("Not admin.", status=403, mimetype="text/plain")
     session["admin_logged_in"] = True
     session["admin_email"] = email
     flash("Sessão iniciada.", "success")
     return redirect(url_for("index"))
 
-
 @app.route("/logout")
 def logout():
     session.pop("admin_logged_in", None)
     session.pop("admin_email", None)
-    session.pop("msal_state", None)
     flash("Sessão terminada.", "info")
     return redirect(url_for("login"))
-
 
 @app.route('/')
 def index(): return render_template('index.html')
@@ -279,88 +234,78 @@ def calc_ele():
                 poup_mensal = cli_total - nos_total
                 res = {"nos": round(nos_total, 2), "cli": round(cli_total, 2), "poup": round(poup_mensal, 2), "poup_anual": round((poup_mensal / max(dias, 1)) * 365, 2), "prod": prod['nome'], "det": det_h, "nos_p": round(nos_p_t, 2), "cli_p": round(cli_p_t, 2), "pl": p_label, "dias": dias, "nos_p_u": round(nos_p_u, 4), "cli_p_u": round(cli_p_u, 4)}
         else:
-            flash("Não existem produtos importados neste segmento! Vá a Administração > Eletricidade e importe o seu Excel.", "danger")
+            flash("Não existem produtos importados neste segmento!", "danger")
             
     return render_template('calc_ele.html', config=cfg, res=res, segmento=seg, tipo_ee=t_ee)
+
+@app.route('/api/sniper/ele', methods=['POST'])
+def sniper_ele():
+    cfg = get_config()["EE_CONFIG"]
+    seg = request.form.get('segmento', 'BTN')
+    dias = safe_int(request.form.get('dias', 30))
+
+    cli_en_t = sum(safe_float(request.form.get(f'cons_p{i}')) * (safe_float(request.form.get(f'c_en_b_p{i}')) + safe_float(request.form.get(f'c_en_t_p{i}'))) for i in range(1, 5))
+
+    if seg == 'BTN':
+        pot_k = request.form.get('pot_btn', '1.15')
+        cli_p_t = dias * (safe_float(request.form.get('c_pot_b')) + safe_float(request.form.get('c_pot_t')))
+        nos_p_t = dias * cfg['BTN']['potencias'].get(pot_k, 0.0573)
+    else:
+        pk, ck = safe_float(request.form.get('bte_ponta_kw')), safe_float(request.form.get('bte_cont_kw'))
+        cli_p_t = dias * (pk * (safe_float(request.form.get('c_ponta_b')) + safe_float(request.form.get('c_ponta_t'))) + ck * (safe_float(request.form.get('c_cont_b')) + safe_float(request.form.get('c_cont_t'))))
+        nos_p_t = dias * ((pk * cfg['BTE']['pot_ponta']) + (ck * cfg['BTE']['pot_contratada']))
+
+    cli_total = cli_en_t + cli_p_t
+
+    def get_top_for_type(tipo_ee):
+        lista_p = cfg[seg][tipo_ee]['produtos']
+        if not lista_p: return []
+        resultados = []
+        for idx, prod in enumerate(lista_p):
+            tar = cfg[seg][tipo_ee]['tar'][prod['tipo']]
+            nos_en_t = sum(safe_float(request.form.get(f'cons_p{i}')) * (prod[f'p{i}'] if tipo_ee == 'EV' else prod[f'p{i}'] + tar[f'p{i}']) for i in range(1, 5))
+            nos_total = nos_en_t + nos_p_t
+            resultados.append({"idx": idx, "nome": prod['nome'], "nos_total": round(nos_total, 2), "poup_anual": round(((cli_total - nos_total) / max(dias, 1)) * 365, 2), "tipo": tipo_ee})
+        resultados.sort(key=lambda x: x['poup_anual'], reverse=True)
+        return resultados[:2] 
+
+    top_en = get_top_for_type('EN')
+    top_ev = get_top_for_type('EV')
+
+    veredicto = ""
+    if top_en and top_ev:
+        best_en = top_en[0]
+        best_ev = top_ev[0]
+        diff_mensal = best_ev['nos_total'] - best_en['nos_total']
+        
+        if diff_mensal < -0.1:
+            veredicto = "🟢 Campanha Verde Ativa: A Energia Eco fica mais barata que a Normal!"
+        elif abs(diff_mensal) <= 0.1:
+            veredicto = "⚖️ Preços Iguais: Ofereça a Energia Verde 100% Renováveis sem custo extra!"
+        else:
+            veredicto = f"🌱 Opção Eco: Passar para Energia Verde fica a apenas +{round(diff_mensal, 2)}€/mês que a Normal."
+    elif top_en:
+        veredicto = "⚡ Apenas Energia Normal disponível no catálogo para este segmento."
+    else:
+        veredicto = "🌱 Apenas Energia Verde disponível no catálogo para este segmento."
+
+    return jsonify({ 
+        "cli_total": round(cli_total, 2), 
+        "top_en": top_en, 
+        "top_ev": top_ev, 
+        "veredicto": veredicto 
+    })
 
 @app.route('/config_ele', methods=['GET', 'POST'])
 def config_ele():
     full = get_config()
     cfg = full["EE_CONFIG"]
-    
     if request.method == 'POST':
         action = request.form.get('action')
-        
         if action == 'clear':
             clear_electricity_products_only()
-            flash('Base de dados de produtos apagada com sucesso! As TARs e Potências foram mantidas e estão seguras.', 'info')
+            flash('Base apagada!', 'info')
             return redirect(url_for('config_ele'))
-
-        elif action == 'import':
-            csv_data = request.form.get('csv_data')
-            if csv_data:
-                linhas = csv_data.strip().split('\n')
-                sucessos = 0
-                imported = []
-                counts = {}
-
-                for linha in linhas:
-                    linha = linha.strip()
-                    if not linha: continue
-
-                    if '\t' in linha: partes = linha.split('\t')
-                    elif ';' in linha: partes = linha.split(';')
-                    else: partes = linha.split(',')
-
-                    partes = [p.strip() for p in partes]
-
-                    seg = None; ee = None; nome = ""; precos = []
-
-                    for p in partes:
-                        p_up = p.upper().replace('"', '')
-                        p_limpo = p.replace('"', '').strip()
-
-                        if p_up in ['BTN', 'BTE'] and not seg: seg = p_up
-                        elif p_up in ['EN', 'EV'] and not ee: ee = p_up
-                        elif seg and ee and not nome and not p_limpo.replace(',','').replace('.','').replace('-','').isdigit():
-                            if len(p_limpo) > 2: nome = p_limpo
-                        elif nome:
-                            try: precos.append(float(p_limpo.replace(',', '.')))
-                            except: pass
-
-                    if seg and ee and nome:
-                        p1 = precos[0] if len(precos) > 0 else 0
-                        p2 = precos[1] if len(precos) > 1 else 0
-                        p3 = precos[2] if len(precos) > 2 else 0
-                        p4 = precos[3] if len(precos) > 3 else 0
-
-                        tipo = "SIM"
-                        nome_lower = nome.lower()
-
-                        if seg == 'BTE':
-                            tipo = "TETRA"
-                        else:
-                            if 'bihorario' in nome_lower or 'bih' in nome_lower:
-                                tipo = "BIH"
-                                p3, p2, p1 = p2, p1, 0
-                            elif 'trihorario' in nome_lower or 'tri' in nome_lower:
-                                tipo = "TRI"
-                            else:
-                                tipo = "SIM"
-
-                        key = (seg, ee)
-                        counts[key] = counts.get(key, 0) + 1
-                        prod = {
-                            "ordem": counts[key],
-                            "nome": nome, "tipo": tipo, "p1": p1, "p2": p2, "p3": p3, "p4": p4
-                        }
-                        imported.append((seg, ee, prod))
-                        sucessos += 1
-
-                persist_imported_products(imported)
-                flash(f'Fantástico! Importados {sucessos} Produtos do Excel com sucesso.', 'success')
-                return redirect(url_for('config_ele'))
-
         elif action == 'save':
             for tipo_ee in ['EN', 'EV']:
                 for i, p in enumerate(cfg['BTN'][tipo_ee]['produtos']):
@@ -376,20 +321,13 @@ def config_ele():
                     p['p2'] = safe_float(request.form.get(f"bte_{tipo_ee.lower()}_p2_{i}"))
                     p['p3'] = safe_float(request.form.get(f"bte_{tipo_ee.lower()}_p3_{i}"))
                     p['p4'] = safe_float(request.form.get(f"bte_{tipo_ee.lower()}_p4_{i}"))
-
             for k in cfg['BTN']['potencias']: cfg['BTN']['potencias'][k] = safe_float(request.form.get(f"pot_btn_{k}"))
             cfg['BTE']['pot_ponta'] = safe_float(request.form.get("bte_pot_ponta"))
             cfg['BTE']['pot_contratada'] = safe_float(request.form.get("bte_pot_cont"))
-
             _apply_electricity_tar_from_form(cfg)
-
-            for k_seg in ["BTN", "BTE"]:
-                for k_ee in ["EN", "EV"]: full["EE_CONFIG"][k_seg][k_ee]['produtos'].sort(key=lambda x: safe_int(x.get('ordem', 999)))
-
             save_electricity_config(full["EE_CONFIG"])
-            flash('Configurações alteradas guardadas com sucesso!', 'success')
+            flash('Guardado com sucesso!', 'success')
             return redirect(url_for('config_ele'))
-    
     return render_template('config_ele.html', config=cfg)
 
 @app.route('/config_gas', methods=['GET', 'POST'])
@@ -410,73 +348,79 @@ def config_gas():
         return redirect(url_for('config_gas'))
     return render_template('config_gas.html', config=cfg)
 
-# NOVA ROTA DE DOWNLOAD DO FICHEIRO CSV
 @app.route('/download_template')
 def download_template():
-    # ATENÇÃO: Garante que o ficheiro com este nome exato está na mesma pasta do app.py
-    try:
-        return send_file('energia.csv', as_attachment=True)
+    try: return send_file('energia.csv', as_attachment=True)
     except Exception as e:
-        flash('Ficheiro de exemplo não encontrado no servidor. Certifique-se de que se chama "energia.csv" e está na pasta principal.', 'danger')
+        flash('Ficheiro de exemplo não encontrado.', 'danger')
         return redirect(url_for('config_ele'))
 
 # ==========================================
-# ROTAS DO SISTEMA DE NOTAS E CRM (JSON)
+# NOTAS E CRM
 # ==========================================
 NOTES_FILE = "notes.json"
 
 def load_notes():
-    if not os.path.exists(NOTES_FILE):
-        return {}
-    try:
-        with open(NOTES_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
+    if not os.path.exists(NOTES_FILE): return {}
+    with open(NOTES_FILE, "r", encoding="utf-8") as f: return json.load(f)
 
 def save_notes(data):
-    try:
-        with open(NOTES_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        print("Erro ao guardar notas no ficheiro JSON:", e)
+    with open(NOTES_FILE, "w", encoding="utf-8") as f: json.dump(data, f, ensure_ascii=False, indent=2)
 
 @app.route('/api/notes', methods=['GET'])
 def get_notes():
     token = request.args.get('token') or session.get("admin_logged_in")
-    if not token:
-        return jsonify({"error": "Acesso negado. Token necessário."}), 403
-    data = load_notes()
-    user_notes = data.get(str(token), [])
-    return jsonify({"notes": user_notes})
+    return jsonify({"notes": load_notes().get(str(token), [])}) if token else jsonify({"error": "Acesso negado."}), 403
 
 @app.route('/api/notes', methods=['POST'])
 def save_note():
     token = request.args.get('token') or session.get("admin_logged_in")
-    if not token:
-        return jsonify({"error": "Acesso negado."}), 403
+    if not token: return jsonify({"error": "Acesso negado."}), 403
     req = request.json or {}
     data = load_notes()
     user_notes = data.get(str(token), [])
     
     note_id = req.get('id')
-    title = req.get('title', 'Nova Nota')
-    content = req.get('content', '')
+    f_date = req.get('followup_date', '')
+    f_time = req.get('followup_time', '')
+    scenario = req.get('scenario')
+    
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d")
     
     if note_id:
         for n in user_notes:
             if n['id'] == note_id:
-                n['title'] = title
-                n['content'] = content
+                n['last_updated'] = now_str 
+                if scenario:
+                    if 'scenarios' not in n: n['scenarios'] = []
+                    if len(n['scenarios']) >= 3: n['scenarios'].pop(0)
+                    n['scenarios'].append(scenario)
+                else:
+                    # 🚀 LÓGICA DE CADEADOS: Só atualiza se o Admin não bloqueou o campo
+                    locks = n.get('locked_fields', {})
+                    if not locks.get('title'): n['title'] = req.get('title', n['title'])
+                    if not locks.get('subtitle'): n['subtitle'] = req.get('subtitle', n['subtitle'])
+                    if not locks.get('nipc'): n['nipc'] = req.get('nipc', n['nipc'])
+                    if not locks.get('phone'): n['phone'] = req.get('phone', n['phone'])
+                    if not locks.get('desc'): n['desc'] = req.get('desc', n['desc'])
+                    if not locks.get('status'): n['status'] = req.get('status', n['status'])
+                    
+                    n['followup_date'] = f_date
+                    n['followup_time'] = f_time
                 break
     else:
-        if len(user_notes) >= 10:
-            return jsonify({"error": "Limite máximo atingido"}), 400
+        if len(user_notes) >= 30: return jsonify({"error": "Limite máximo"}), 400
         note_id = str(uuid.uuid4())
         user_notes.append({
-            "id": note_id,
-            "title": title,
-            "content": content
+            "id": note_id, "title": req.get('title', 'Nova Lead'), "subtitle": req.get('subtitle', ''), 
+            "nipc": req.get('nipc', ''), "phone": req.get('phone', ''), 
+            "desc": req.get('desc', ''), "status": req.get('status', 'lead'),
+            "followup_date": f_date, "followup_time": f_time,
+            "scenarios": [],
+            "archived": False,
+            "locked_fields": {}, # 🚀 Inicializa cadeados vazios
+            "last_updated": now_str,
+            "created_at": now_str
         })
     
     data[str(token)] = user_notes
@@ -486,19 +430,288 @@ def save_note():
 @app.route('/api/notes/<note_id>', methods=['DELETE'])
 def delete_note(note_id):
     token = request.args.get('token') or session.get("admin_logged_in")
-    if not token:
-        return jsonify({"error": "Acesso negado."}), 403
     data = load_notes()
-    user_notes = data.get(str(token), [])
-    data[str(token)] = [n for n in user_notes if n['id'] != str(note_id)]
+    
+    for n in data.get(str(token), []):
+        if n['id'] == str(note_id):
+            n['archived'] = True
+            n['last_updated'] = datetime.datetime.now().strftime("%Y-%m-%d")
+            break
+            
     save_notes(data)
+    return jsonify({"success": True})
+
+# 🚀 NOVA ROTA DE GESTÃO ADMIN: Mover, Bloquear, Editar e Apagar Cenários
+@app.route('/api/admin/manage_note', methods=['POST'])
+def admin_manage_note():
+    if not session.get("admin_logged_in"): 
+        return jsonify({"error": "Acesso negado."}), 403
+    
+    req = request.json
+    source_token = req.get('source_token')
+    note_id = req.get('note_id')
+    action = req.get('action') # 'update', 'move', 'delete_scenario'
+    
+    data = load_notes()
+    
+    if source_token not in data:
+        return jsonify({"error": "Operador não encontrado."}), 404
+
+    note_to_action = None
+    note_index = -1
+    for i, n in enumerate(data[source_token]):
+        if n['id'] == note_id:
+            note_to_action = n
+            note_index = i
+            break
+    
+    if not note_to_action:
+        return jsonify({"error": "Nota não encontrada."}), 404
+
+    if action == 'update':
+        fields = ['title', 'subtitle', 'nipc', 'phone', 'desc', 'status']
+        for f in fields:
+            if f in req: note_to_action[f] = req[f]
+        
+        note_to_action['archived'] = req.get('archived', note_to_action.get('archived', False))
+        note_to_action['locked_fields'] = req.get('locked_fields', note_to_action.get('locked_fields', {}))
+        note_to_action['last_updated'] = datetime.datetime.now().strftime("%Y-%m-%d")
+        
+    elif action == 'move':
+        target_token = req.get('target_token')
+        if not target_token: return jsonify({"error": "Token de destino em falta."}), 400
+        
+        # Move de um token para outro
+        note_to_move = data[source_token].pop(note_index)
+        note_to_move['last_updated'] = datetime.datetime.now().strftime("%Y-%m-%d")
+        
+        if target_token not in data: data[target_token] = []
+        data[target_token].append(note_to_move)
+        
+    # LÓGICA NOVA PARA APAGAR CENÁRIOS INDIVIDUAIS
+    elif action == 'delete_scenario':
+        scenario_idx = req.get('scenario_index')
+        if scenario_idx is not None and 0 <= scenario_idx < len(note_to_action.get('scenarios', [])):
+            note_to_action['scenarios'].pop(scenario_idx)
+            note_to_action['last_updated'] = datetime.datetime.now().strftime("%Y-%m-%d")
+        else:
+            return jsonify({"error": "Índice de cenário inválido."}), 400
+
+    save_notes(data)
+    return jsonify({"success": True})
+
+@app.route('/admin/notas')
+def admin_notas():
+    if not session.get("admin_logged_in"): return redirect(url_for("login"))
+    today = datetime.datetime.now() 
+    all_notes = load_notes()
+    
+    # ==========================================
+    # 🚀 MOTOR DE ANALYTICS / BI DO ADMIN
+    # ==========================================
+    lead_velocity = {}
+    scenario_counts = {}
+    forgotten_leads = []
+    
+    for token, notes in all_notes.items():
+        velocity_sum = 0
+        closed_count = 0
+        
+        for n in notes:
+            created_str = n.get('created_at', n.get('last_updated', today.strftime("%Y-%m-%d")))
+            last_upd_str = n.get('last_updated', created_str)
+            
+            if n.get('status') == 'fechado':
+                try:
+                    d_created = datetime.datetime.strptime(created_str, "%Y-%m-%d")
+                    d_updated = datetime.datetime.strptime(last_upd_str, "%Y-%m-%d")
+                    days = (d_updated - d_created).days
+                    velocity_sum += max(days, 0)
+                    closed_count += 1
+                except: pass
+            
+            for sc in n.get('scenarios', []):
+                p_name = sc.get('name', 'Desconhecido')
+                scenario_counts[p_name] = scenario_counts.get(p_name, 0) + 1
+            
+            if not n.get('archived') and n.get('status') != 'fechado':
+                try:
+                    d_updated = datetime.datetime.strptime(last_upd_str, "%Y-%m-%d")
+                    diff_days = (today - d_updated).days
+                    if diff_days >= 2:
+                        forgotten_leads.append({
+                            "token": token,
+                            "title": n.get('title', 'Sem Título'),
+                            "status": n.get('status', 'lead'),
+                            "days_idle": diff_days
+                        })
+                except: pass
+                
+        if closed_count > 0:
+            lead_velocity[token] = round(velocity_sum / closed_count, 1)
+            
+    top_sniper = sorted(scenario_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+    forgotten_leads = sorted(forgotten_leads, key=lambda x: x['days_idle'], reverse=True)
+    
+    analytics = {
+        "velocity": lead_velocity,
+        "top_sniper": top_sniper,
+        "forgotten": forgotten_leads
+    }
+
+    return render_template('admin_notas.html', all_notes=all_notes, today=today, datetime=datetime, analytics=analytics)
+
+@app.route('/admin/export_leads')
+def export_leads():
+    if not session.get("admin_logged_in"): return redirect(url_for("login"))
+    
+    output = io.StringIO()
+    # Adicionadas colunas para Produto e Poupança
+    writer = csv.writer(output, delimiter=';') 
+    writer.writerow([
+        'Operador', 'Estado', 'Titulo', 'Subtitulo', 'NIPC', 'Telefone', 
+        'Data Ligar', 'Hora Ligar', 'Descricao', 'Arquivado', 
+        'Produto Simulado', 'Poupanca Anual', 'Data Criacao', 'Ultima Atualizacao'
+    ])
+    
+    for token, notes in load_notes().items():
+        for n in notes: 
+            arq_status = 'Sim' if n.get('archived') else 'Nao'
+            created = n.get('created_at', 'N/A')
+            updated = n.get('last_updated', 'N/A')
+            
+            # Extrair dados da última simulação feita (se existir)
+            scenarios = n.get('scenarios', [])
+            last_prod = "N/A"
+            last_poup = "0.00"
+            
+            if scenarios:
+                # Pegamos no último cenário da lista (o mais recente)
+                s = scenarios[-1]
+                last_prod = s.get('name', 'N/A')
+                last_poup = s.get('poup_anual', '0.00')
+
+            writer.writerow([
+                token, 
+                n.get('status', '').upper(), 
+                n.get('title', ''), 
+                n.get('subtitle', ''), 
+                n.get('nipc', ''), 
+                n.get('phone', ''), 
+                n.get('followup_date', ''), 
+                n.get('followup_time', ''), 
+                n.get('desc', '').replace('\n', ' | '), 
+                arq_status,
+                last_prod,   # Nova coluna
+                last_poup,   # Nova coluna
+                created, 
+                updated
+            ])
+            
+    response = Response(output.getvalue().encode('utf-8-sig'), mimetype="text/csv")
+    response.headers["Content-Disposition"] = "attachment; filename=B2B_Leads_" + datetime.datetime.now().strftime("%Y-%m-%d_%Hh%Mm%Ss") + ".csv"
+    return response
+
+# ==========================================
+# MOTOR DO CHAT E BROADCAST
+# ==========================================
+CHAT_FILE = "chat_sql_ready.json"
+
+def load_chat():
+    if not os.path.exists(CHAT_FILE): return {"messages": [], "broadcast": {}}
+    try:
+        with open(CHAT_FILE, "r", encoding="utf-8") as f: return json.load(f)
+    except Exception: return {"messages": [], "broadcast": {}}
+
+def save_chat(data):
+    with open(CHAT_FILE, "w", encoding="utf-8") as f: json.dump(data, f, ensure_ascii=False, indent=2)
+
+@app.route('/api/broadcast', methods=['POST'])
+def post_broadcast():
+    if not session.get("admin_logged_in"): return jsonify({"error": "Unauthorized"}), 403
+    text = (request.json or {}).get('text', '').strip()
+    if not text: return jsonify({"error": "Empty"}), 400
+    
+    chat_data = load_chat()
+    chat_data["broadcast"] = {
+        "id": str(uuid.uuid4()),
+        "text": text,
+        "timestamp": datetime.datetime.now().strftime("%H:%M")
+    }
+    save_chat(chat_data)
+    return jsonify({"success": True})
+
+@app.route('/api/chat/status', methods=['GET'])
+def get_chat_status():
+    is_admin = session.get("admin_logged_in")
+    token = request.args.get('token')
+    chat_data = load_chat()
+    
+    current_broadcast = chat_data.get("broadcast", {})
+    
+    if is_admin:
+        operators = {}
+        total_unread = 0
+        for msg in chat_data["messages"]:
+            tid = msg["token_id"]
+            if tid not in operators: operators[tid] = {"unread": 0, "last_time": ""}
+            if not msg["is_read_admin"]:
+                operators[tid]["unread"] += 1
+                total_unread += 1
+            operators[tid]["last_time"] = msg["timestamp"]
+        return jsonify({"is_admin": True, "total_unread": total_unread, "operators": operators, "broadcast": current_broadcast})
+    else:
+        unread = sum(1 for msg in chat_data["messages"] if msg["token_id"] == token and not msg["is_read_op"])
+        return jsonify({"is_admin": False, "total_unread": unread, "broadcast": current_broadcast})
+
+@app.route('/api/chat', methods=['GET'])
+def get_private_chat():
+    is_admin = session.get("admin_logged_in")
+    target = request.args.get('target') 
+    
+    if not target: return jsonify({"messages": []})
+    
+    chat_data = load_chat()
+    filtered_msgs = []
+    
+    for msg in chat_data["messages"]:
+        if msg["token_id"] == target:
+            if is_admin: msg["is_read_admin"] = True
+            else: msg["is_read_op"] = True
+            filtered_msgs.append(msg)
+            
+    save_chat(chat_data)
+    return jsonify({"messages": filtered_msgs})
+
+@app.route('/api/chat', methods=['POST'])
+def post_private_chat():
+    is_admin = session.get("admin_logged_in")
+    target = request.args.get('target')
+    
+    if not target: return jsonify({"error": "No target"}), 400
+    text = (request.json or {}).get('text', '').strip()
+    if not text: return jsonify({"error": "Empty"}), 400
+
+    chat_data = load_chat()
+    
+    new_message = {
+        "id": str(uuid.uuid4()),
+        "token_id": target,
+        "sender": "Admin" if is_admin else target,
+        "text": text,
+        "timestamp": datetime.datetime.now().strftime("%H:%M"),
+        "is_read_admin": is_admin is not None, 
+        "is_read_op": not is_admin 
+    }
+    
+    chat_data["messages"].append(new_message)
+    chat_data["messages"] = chat_data["messages"][-1000:]
+    
+    save_chat(chat_data)
     return jsonify({"success": True})
 
 if __name__ == '__main__':
     with app.app_context():
-        try:
-            get_config()
-        except DatabaseConfigError as e:
-            sys.stderr.write(f"Database configuration error: {e}\n")
-            raise SystemExit(1) from e
+        try: get_config()
+        except DatabaseConfigError as e: sys.exit(1)
     app.run(port=5000, debug=True)

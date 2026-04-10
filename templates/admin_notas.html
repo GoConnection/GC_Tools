@@ -1,0 +1,370 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="row mb-4 align-items-center">
+    <div class="col-md-5">
+        <h2 class="text-primary fw-bold mb-0"><i class="fa-solid fa-users-gear me-2"></i>Gestão de Leads</h2>
+    </div>
+    <div class="col-md-7 d-flex gap-2 justify-content-end">
+        <div class="input-group input-group-sm w-50 shadow-sm">
+            <span class="input-group-text bg-white border-end-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+            <input type="text" id="adminSearch" class="form-control border-start-0" placeholder="Pesquisar NIPC, Nome ou Telefone..." onkeyup="adminFilter()">
+        </div>
+        <select id="adminStatusFilter" class="form-select form-select-sm w-25 shadow-sm" onchange="adminFilter()">
+            <option value="all">Todos os Estados</option>
+            <option value="lead">Leads</option>
+            <option value="proposta">Propostas</option>
+            <option value="fechado">Fechados</option>
+            <option value="arquivado">Arquivados</option>
+        </select>
+        <a href="{{ url_for('export_leads') }}" class="btn btn-success btn-sm fw-bold shadow-sm">
+            <i class="fa-solid fa-file-excel me-1"></i>Excel
+        </a>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-lg-4">
+        <div class="card shadow-sm border-0 h-100 bg-body-tertiary border-top border-primary border-4">
+            <div class="card-body">
+                <h6 class="fw-bold text-primary mb-3"><i class="fa-solid fa-stopwatch me-2"></i>Lead Velocity</h6>
+                <div class="small">
+                    {% for t, v in analytics.velocity.items() %}
+                    <div class="d-flex justify-content-between mb-1"><span>{{t}}:</span><span class="fw-bold">{{v}} dias</span></div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card shadow-sm border-0 h-100 bg-body-tertiary border-top border-success border-4">
+            <div class="card-body">
+                <h6 class="fw-bold text-success mb-3"><i class="fa-solid fa-trophy me-2"></i>Ranking Sniper</h6>
+                <div class="small">
+                    {% for p, c in analytics.top_sniper %}
+                    <div class="d-flex justify-content-between mb-1"><span>{{p}}:</span><span class="fw-bold">{{c}}x</span></div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card shadow-sm border-0 h-100 bg-body-tertiary border-top border-danger border-4">
+            <div class="card-body">
+                <h6 class="fw-bold text-danger mb-3"><i class="fa-solid fa-clock-rotate-left me-2"></i>Leads Esquecidas</h6>
+                <div class="small overflow-auto" style="max-height: 100px;">
+                    {% for f in analytics.forgotten %}
+                    <div class="mb-1 text-danger"><strong>{{f.token}}:</strong> {{f.title}} ({{f.days_idle}} dias)</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if all_notes %}
+    <div class="accordion shadow-sm" id="accordionOps">
+        {% for token, notes in all_notes.items() %}
+        <div class="accordion-item border-0 mb-2 rounded shadow-sm overflow-hidden" data-operator="{{ token }}">
+            <h2 class="accordion-header">
+                <button class="accordion-button bg-white fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#coll{{loop.index}}">
+                    <i class="fa-solid fa-headset me-2 text-primary"></i>Operador: {{ token }}
+                    <span class="badge bg-secondary ms-2 rounded-pill">{{ notes|length }}</span>
+                </button>
+            </h2>
+            <div id="coll{{loop.index}}" class="accordion-collapse collapse show">
+                <div class="accordion-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 small">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 100px;">Estado</th>
+                                    <th>Cliente / Contacto</th>
+                                    <th>Simulações</th>
+                                    <th>Próximo Contacto</th>
+                                    <th class="text-center" style="width: 80px;">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for n in notes %}
+                                <tr class="lead-row" 
+                                    data-status="{{ 'arquivado' if n.archived else n.status }}" 
+                                    data-search="{{ n.title|lower }} {{ n.nipc }} {{ n.phone }}">
+                                    <td>
+                                        <span class="badge {% if n.status == 'fechado' %}bg-success{% elif n.status == 'proposta' %}bg-warning text-dark{% else %}bg-info{% endif %} rounded-pill w-100">
+                                            {{ n.status|upper }}
+                                        </span>
+                                        {% if n.archived %}<div class="text-center mt-1"><i class="fa-solid fa-box-archive text-muted small" title="Arquivado"></i></div>{% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold text-dark">{{ n.title }}</div>
+                                        <div class="text-muted small">{{ n.subtitle }}</div>
+                                        <div class="mt-1">
+                                            <span class="text-primary me-2"><i class="fa-solid fa-id-card me-1"></i>{{ n.nipc }}</span>
+                                            <span class="text-secondary"><i class="fa-solid fa-phone me-1"></i>{{ n.phone }}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if n.scenarios %}
+                                            {% set sc = n.scenarios[-1] %}
+                                            <div class="fw-bold text-primary">{{ sc.name }}</div>
+                                            <div class="text-success small">Poup: {{ sc.poup_anual }}€</div>
+                                        {% else %}
+                                            <span class="text-muted fst-italic">Sem dados</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if n.followup_date %}
+                                            <div><i class="fa-regular fa-calendar-check me-1"></i>{{ n.followup_date }}</div>
+                                            <div class="text-muted"><i class="fa-regular fa-clock me-1"></i>{{ n.followup_time }}</div>
+                                        {% else %}
+                                            <span class="text-muted">---</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <button class="btn btn-sm btn-primary px-3 rounded-pill" onclick='openManageModal("{{ token }}", {{ n|tojson|safe }})'>
+                                         Gerir
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="text-center py-5">
+        <i class="fa-solid fa-folder-open fs-1 text-muted mb-3"></i>
+        <p class="text-muted">Nenhum dado encontrado.</p>
+    </div>
+{% endif %}
+
+<div class="modal fade" id="adminManageModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white border-0">
+                <h5 class="modal-title fw-bold"><i class="fa-solid fa-user-shield me-2"></i>Controlo de Lead</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light p-4">
+                <input type="hidden" id="m_source_token">
+                <input type="hidden" id="m_note_id">
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="small fw-bold mb-1">Nome do Cliente</label>
+                        <div class="input-group input-group-sm">
+                            <input type="text" id="m_title" class="form-control">
+                            <div class="input-group-text bg-white">
+                                <input class="form-check-input mt-0" type="checkbox" id="l_title" title="Bloquear alteração">
+                                <i class="fa-solid fa-lock ms-2 small text-muted"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="small fw-bold mb-1">NIPC / Contribuinte</label>
+                        <div class="input-group input-group-sm">
+                            <input type="text" id="m_nipc" class="form-control">
+                            <div class="input-group-text bg-white">
+                                <input class="form-check-input mt-0" type="checkbox" id="l_nipc">
+                                <i class="fa-solid fa-lock ms-2 small text-muted"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="small fw-bold mb-1">Telefone</label>
+                        <div class="input-group input-group-sm">
+                            <input type="text" id="m_phone" class="form-control">
+                            <div class="input-group-text bg-white">
+                                <input class="form-check-input mt-0" type="checkbox" id="l_phone">
+                                <i class="fa-solid fa-lock ms-2 small text-muted"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="small fw-bold mb-1">Estado</label>
+                        <div class="input-group input-group-sm">
+                            <select id="m_status" class="form-select">
+                                <option value="lead">Lead</option>
+                                <option value="proposta">Proposta</option>
+                                <option value="fechado">Fechado</option>
+                            </select>
+                            <div class="input-group-text bg-white">
+                                <input class="form-check-input mt-0" type="checkbox" id="l_status">
+                                <i class="fa-solid fa-lock ms-2 small text-muted"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="small fw-bold mb-1">Observações</label>
+                        <textarea id="m_desc" class="form-control form-control-sm" rows="3"></textarea>
+                    </div>
+
+                    <div class="col-12 border-top mt-3 pt-3">
+                        <label class="small fw-bold mb-2 text-success"><i class="fa-solid fa-list-check me-1"></i>Simulações Guardadas</label>
+                        <div id="m_scenarios_list" class="bg-white border rounded p-2 small">
+                            </div>
+                    </div>
+
+                    <div class="col-12 border-top mt-4 pt-3">
+                        <h6 class="fw-bold text-primary"><i class="fa-solid fa-shuffle me-2"></i>Reatribuição e Arquivo</h6>
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-6">
+                                <label class="small text-muted">Transferir para outro Operador:</label>
+                                <div class="input-group input-group-sm">
+                                    <select id="m_target_token" class="form-select">
+                                        <option value="">Escolher operador...</option>
+                                        {% for t in all_notes.keys() %}
+                                        <option value="{{ t }}">{{ t }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <button class="btn btn-warning fw-bold" onclick="submitAdminAction('move')">Mover</button>
+                                </div>
+                            </div>
+                            <div class="col-md-6 d-flex align-items-end">
+                                <div class="form-check form-switch pb-1">
+                                    <input class="form-check-input" type="checkbox" id="m_archived">
+                                    <label class="form-check-label fw-bold text-muted ms-2">Arquivar Lead (Ocultar do Operador)</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 bg-white">
+                <button type="button" class="btn btn-outline-secondary btn-sm fw-bold px-4" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-primary btn-sm fw-bold px-4" onclick="submitAdminAction('update')">Guardar Alterações</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. FILTRO DE PESQUISA E ESTADO
+    function adminFilter() {
+        const query = document.getElementById('adminSearch').value.toLowerCase();
+        const status = document.getElementById('adminStatusFilter').value;
+        const rows = document.querySelectorAll('.lead-row');
+
+        rows.forEach(row => {
+            const rowStatus = row.getAttribute('data-status');
+            const rowText = row.getAttribute('data-search');
+            
+            const matchStatus = (status === 'all') || (rowStatus === status);
+            const matchQuery = rowText.includes(query);
+
+            row.style.display = (matchStatus && matchQuery) ? '' : 'none';
+        });
+    }
+
+    // 2. ABRIR MODAL COM DADOS (Agora inclui Cenários)
+    function openManageModal(token, nota) {
+        document.getElementById('m_source_token').value = token;
+        document.getElementById('m_note_id').value = nota.id;
+        document.getElementById('m_title').value = nota.title || '';
+        document.getElementById('m_nipc').value = nota.nipc || '';
+        document.getElementById('m_phone').value = nota.phone || '';
+        document.getElementById('m_desc').value = nota.desc || '';
+        document.getElementById('m_status').value = nota.status || 'lead';
+        document.getElementById('m_archived').checked = nota.archived || false;
+
+        // Cadeados
+        const locks = nota.locked_fields || {};
+        document.getElementById('l_title').checked = !!locks.title;
+        document.getElementById('l_nipc').checked = !!locks.nipc;
+        document.getElementById('l_phone').checked = !!locks.phone;
+        document.getElementById('l_status').checked = !!locks.status;
+
+        // LÓGICA NOVA: Preencher Cenários
+        const scenariosList = document.getElementById('m_scenarios_list');
+        scenariosList.innerHTML = '';
+        if (nota.scenarios && nota.scenarios.length > 0) {
+            nota.scenarios.forEach((sc, index) => {
+                scenariosList.innerHTML += `
+                    <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+                        <div>
+                            <span class="fw-bold text-primary"><i class="fa-solid fa-bolt me-1"></i>${sc.name || 'Simulação'}</span>
+                            <span class="ms-3 text-success fw-bold">Poup: ${sc.poup_anual || 0}€/ano</span>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteScenario(${index})" title="Apagar este cenário">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+            });
+        } else {
+            scenariosList.innerHTML = '<span class="text-muted fst-italic">Nenhum cenário guardado nesta lead.</span>';
+        }
+
+        const modal = new bootstrap.Modal(document.getElementById('adminManageModal'));
+        modal.show();
+    }
+
+    // 3. NOVA FUNÇÃO: ELIMINAR UM CENÁRIO ESPECÍFICO
+    function deleteScenario(index) {
+        if (!confirm("Tem a certeza que deseja eliminar esta simulação? Ação irreversível.")) return;
+        
+        const payload = {
+            action: 'delete_scenario',
+            source_token: document.getElementById('m_source_token').value,
+            note_id: document.getElementById('m_note_id').value,
+            scenario_index: index
+        };
+
+        fetch('/api/admin/manage_note', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) location.reload(); // Atualiza a página para mostrar a remoção
+            else alert("Erro: " + data.error);
+        });
+    }
+
+    // 4. ENVIAR PARA O SERVIDOR
+    function submitAdminAction(action) {
+        const payload = {
+            action: action,
+            source_token: document.getElementById('m_source_token').value,
+            note_id: document.getElementById('m_note_id').value
+        };
+
+        if (action === 'update') {
+            payload.title = document.getElementById('m_title').value;
+            payload.nipc = document.getElementById('m_nipc').value;
+            payload.phone = document.getElementById('m_phone').value;
+            payload.desc = document.getElementById('m_desc').value;
+            payload.status = document.getElementById('m_status').value;
+            payload.archived = document.getElementById('m_archived').checked;
+            payload.locked_fields = {
+                title: document.getElementById('l_title').checked,
+                nipc: document.getElementById('l_nipc').checked,
+                phone: document.getElementById('l_phone').checked,
+                status: document.getElementById('l_status').checked
+            };
+        } else if (action === 'move') {
+            payload.target_token = document.getElementById('m_target_token').value;
+            if (!payload.target_token) return alert("Selecione um operador de destino.");
+            if (!confirm("Tem a certeza que quer transferir esta lead?")) return;
+        }
+
+        fetch('/api/admin/manage_note', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) location.reload();
+            else alert("Erro: " + data.error);
+        });
+    }
+</script>
+
+{% endblock %}
