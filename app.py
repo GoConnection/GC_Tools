@@ -386,6 +386,8 @@ def save_note():
     scenario = req.get('scenario')
     
     now_str = datetime.datetime.now().strftime("%Y-%m-%d")
+    now_time = datetime.datetime.now().strftime("%H:%M:%S")
+    new_log = req.get('new_log', '').strip()
     
     if note_id:
         for n in user_notes:
@@ -396,7 +398,6 @@ def save_note():
                     if len(n['scenarios']) >= 3: n['scenarios'].pop(0)
                     n['scenarios'].append(scenario)
                 else:
-                    # 🚀 LÓGICA DE CADEADOS: Só atualiza se o Admin não bloqueou o campo
                     locks = n.get('locked_fields', {})
                     if not locks.get('title'): n['title'] = req.get('title', n['title'])
                     if not locks.get('subtitle'): n['subtitle'] = req.get('subtitle', n['subtitle'])
@@ -404,23 +405,28 @@ def save_note():
                     if not locks.get('phone'): n['phone'] = req.get('phone', n['phone'])
                     if not locks.get('desc'): n['desc'] = req.get('desc', n['desc'])
                     if not locks.get('status'): n['status'] = req.get('status', n['status'])
-                    
                     n['followup_date'] = f_date
                     n['followup_time'] = f_time
+                    
+                    if new_log:
+                        if 'history' not in n: n['history'] = []
+                        n['history'].append({"text": new_log, "date": now_str, "time": now_time, "author": str(token)})
                 break
     else:
         if len(user_notes) >= 30: return jsonify({"error": "Limite máximo"}), 400
         note_id = str(uuid.uuid4())
+        
+        init_hist = [{"text": "Lead criada", "date": now_str, "time": now_time, "author": str(token)}]
+        if new_log: init_hist.append({"text": new_log, "date": now_str, "time": now_time, "author": str(token)})
+        
         user_notes.append({
             "id": note_id, "title": req.get('title', 'Nova Lead'), "subtitle": req.get('subtitle', ''), 
             "nipc": req.get('nipc', ''), "phone": req.get('phone', ''), 
             "desc": req.get('desc', ''), "status": req.get('status', 'lead'),
             "followup_date": f_date, "followup_time": f_time,
-            "scenarios": [],
-            "archived": False,
-            "locked_fields": {}, # 🚀 Inicializa cadeados vazios
-            "last_updated": now_str,
-            "created_at": now_str
+            "scenarios": [], "archived": False, "locked_fields": {},
+            "history": init_hist,
+            "last_updated": now_str, "created_at": now_str
         })
     
     data[str(token)] = user_notes
@@ -441,7 +447,6 @@ def delete_note(note_id):
     save_notes(data)
     return jsonify({"success": True})
 
-# 🚀 NOVA ROTA DE GESTÃO ADMIN: Mover, Bloquear, Editar e Apagar Cenários
 @app.route('/api/admin/manage_note', methods=['POST'])
 def admin_manage_note():
     if not session.get("admin_logged_in"): 
@@ -450,7 +455,7 @@ def admin_manage_note():
     req = request.json
     source_token = req.get('source_token')
     note_id = req.get('note_id')
-    action = req.get('action') # 'update', 'move', 'delete_scenario'
+    action = req.get('action') 
     
     data = load_notes()
     
@@ -469,26 +474,44 @@ def admin_manage_note():
         return jsonify({"error": "Nota não encontrada."}), 404
 
     if action == 'update':
-        fields = ['title', 'subtitle', 'nipc', 'phone', 'desc', 'status']
+        fields = ['title', 'subtitle', 'nipc', 'phone', 'desc', 'status', 'followup_date', 'followup_time']
         for f in fields:
             if f in req: note_to_action[f] = req[f]
         
         note_to_action['archived'] = req.get('archived', note_to_action.get('archived', False))
         note_to_action['locked_fields'] = req.get('locked_fields', note_to_action.get('locked_fields', {}))
-        note_to_action['last_updated'] = datetime.datetime.now().strftime("%Y-%m-%d")
+        
+        new_log = req.get('new_log', '').strip()
+        now = datetime.datetime.now()
+        now_time = now.strftime("%H:%M:%S")
+        now_str = now.strftime("%Y-%m-%d")
+        
+        if new_log:
+            if 'history' not in note_to_action: note_to_action['history'] = []
+            note_to_action['history'].append({"text": new_log, "date": now_str, "time": now_time, "author": "Admin"})
+            
+            # Formatação do e-mail e data exata conforme o pedido
+            admin_email = session.get("admin_email", "admin")
+            admin_name = admin_email.split('@')[0] if '@' in admin_email else admin_email
+            formatted_date_time = now.strftime("%d-%m-%Y-%H:%M:%S")
+            log_entry = f"{admin_name} - {formatted_date_time}: {new_log}"
+            
+            old_desc = note_to_action.get('desc', '').strip()
+            if old_desc:
+                note_to_action['desc'] = old_desc + f"\n\n{log_entry}"
+            else:
+                note_to_action['desc'] = f"{log_entry}"
+            
+        note_to_action['last_updated'] = now_str
         
     elif action == 'move':
         target_token = req.get('target_token')
         if not target_token: return jsonify({"error": "Token de destino em falta."}), 400
-        
-        # Move de um token para outro
         note_to_move = data[source_token].pop(note_index)
         note_to_move['last_updated'] = datetime.datetime.now().strftime("%Y-%m-%d")
-        
         if target_token not in data: data[target_token] = []
         data[target_token].append(note_to_move)
         
-    # LÓGICA NOVA PARA APAGAR CENÁRIOS INDIVIDUAIS
     elif action == 'delete_scenario':
         scenario_idx = req.get('scenario_index')
         if scenario_idx is not None and 0 <= scenario_idx < len(note_to_action.get('scenarios', [])):
@@ -505,10 +528,8 @@ def admin_notas():
     if not session.get("admin_logged_in"): return redirect(url_for("login"))
     today = datetime.datetime.now() 
     all_notes = load_notes()
+    current_time_str = today.strftime("%H:%M")
     
-    # ==========================================
-    # 🚀 MOTOR DE ANALYTICS / BI DO ADMIN
-    # ==========================================
     lead_velocity = {}
     scenario_counts = {}
     forgotten_leads = []
@@ -516,6 +537,8 @@ def admin_notas():
     for token, notes in all_notes.items():
         velocity_sum = 0
         closed_count = 0
+        
+        notes.sort(key=lambda x: safe_float(x.get('scenarios', [{}])[-1].get('poup_anual', 0)) if x.get('scenarios') else 0, reverse=True)
         
         for n in notes:
             created_str = n.get('created_at', n.get('last_updated', today.strftime("%Y-%m-%d")))
@@ -559,14 +582,13 @@ def admin_notas():
         "forgotten": forgotten_leads
     }
 
-    return render_template('admin_notas.html', all_notes=all_notes, today=today, datetime=datetime, analytics=analytics)
+    return render_template('admin_notas.html', all_notes=all_notes, today=today, datetime=datetime, analytics=analytics, current_time=current_time_str)
 
 @app.route('/admin/export_leads')
 def export_leads():
     if not session.get("admin_logged_in"): return redirect(url_for("login"))
     
     output = io.StringIO()
-    # Adicionadas colunas para Produto e Poupança
     writer = csv.writer(output, delimiter=';') 
     writer.writerow([
         'Operador', 'Estado', 'Titulo', 'Subtitulo', 'NIPC', 'Telefone', 
@@ -580,13 +602,11 @@ def export_leads():
             created = n.get('created_at', 'N/A')
             updated = n.get('last_updated', 'N/A')
             
-            # Extrair dados da última simulação feita (se existir)
             scenarios = n.get('scenarios', [])
             last_prod = "N/A"
             last_poup = "0.00"
             
             if scenarios:
-                # Pegamos no último cenário da lista (o mais recente)
                 s = scenarios[-1]
                 last_prod = s.get('name', 'N/A')
                 last_poup = s.get('poup_anual', '0.00')
@@ -602,14 +622,14 @@ def export_leads():
                 n.get('followup_time', ''), 
                 n.get('desc', '').replace('\n', ' | '), 
                 arq_status,
-                last_prod,   # Nova coluna
-                last_poup,   # Nova coluna
+                last_prod, 
+                last_poup, 
                 created, 
                 updated
             ])
             
     response = Response(output.getvalue().encode('utf-8-sig'), mimetype="text/csv")
-    response.headers["Content-Disposition"] = "attachment; filename=B2B_Leads_" + datetime.datetime.now().strftime("%Y-%m-%d_%Hh%Mm%Ss") + ".csv"
+    response.headers["Content-Disposition"] = "attachment; filename=B2B_Leads_" + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%Sh") + ".csv"
     return response
 
 # ==========================================
