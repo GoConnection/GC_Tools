@@ -95,25 +95,76 @@
         </div>
 
         <div class="tab-pane fade" id="tab-pot" role="tabpanel">
-            <h5 class="text-primary border-bottom pb-2 mb-4"><i class="fa-solid fa-plug me-2"></i>BTN (≤ 41.40 kVA) - Preço de Catálogo (€/dia)</h5>
+            <h5 class="text-primary border-bottom pb-2 mb-4"><i class="fa-solid fa-plug me-2"></i>BTN (≤ 41.40 kVA) - Termo de Potência (€/dia)</h5>
+            
+            <h6 class="fw-bold mb-3"><i class="fa-solid fa-bolt text-warning me-2"></i>Energia Normal (Preço Único)</h6>
             <div class="row g-2 mb-5">
-                {% for k, v in config.BTN.potencias.items() %}
+                {% for k in config.BTN.potencias.keys() %}
                 <div class="col-md-2 text-center border border-secondary-subtle p-2 bg-body-secondary rounded shadow-sm hover-elevate">
                     <label class="small fw-bold text-body">{{ k }} kVA</label>
-                    <input type="number" step="0.0001" name="pot_btn_{{ k }}" class="form-control text-center border-primary bg-body text-body" value="{{ v }}">
+                    <input type="number" step="0.0001" name="pot_btn_en_{{ k }}" class="form-control text-center border-warning bg-body text-body" value="{{ config.BTN.EN.potencias.get(k, 0) }}">
+                </div>
+                {% endfor %}
+            </div>
+
+            <h6 class="fw-bold text-success mb-3"><i class="fa-solid fa-leaf me-2"></i>Energia Verde (Preços por Ciclo)</h6>
+            <ul class="nav nav-pills mb-3" id="pills-tab-ev" role="tablist">
+                {% for ciclo in ['SIM', 'BIH', 'TRI', 'TRI+'] %}
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if loop.first %}active{% endif %} fw-bold" data-bs-toggle="pill" data-bs-target="#pill-ev-{{ ciclo|lower|replace('+', 'plus') }}" type="button" role="tab">{{ ciclo }}</button>
+                </li>
+                {% endfor %}
+            </ul>
+            <div class="tab-content mb-5" id="pills-tabContent-ev">
+                {% for ciclo in ['SIM', 'BIH', 'TRI', 'TRI+'] %}
+                <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="pill-ev-{{ ciclo|lower|replace('+', 'plus') }}" role="tabpanel">
+                    <div class="row g-2">
+                        {% for k in config.BTN.potencias.keys() %}
+                        <div class="col-md-2 text-center border border-success-subtle p-2 bg-success bg-opacity-10 rounded shadow-sm hover-elevate">
+                            <label class="small fw-bold text-success-emphasis">{{ k }} kVA</label>
+                            <input type="number" step="0.0001" name="pot_btn_ev_{{ ciclo }}_{{ k }}" class="form-control text-center border-success bg-body text-body" value="{{ config.BTN.EV.potencias.get(ciclo, {}).get(k, 0) }}">
+                        </div>
+                        {% endfor %}
+                    </div>
                 </div>
                 {% endfor %}
             </div>
             
-            <h5 class="text-primary border-bottom pb-2 mb-3"><i class="fa-solid fa-industry me-2"></i>BTE (≥ 41.41 kW) - Potência (€/kW dia)</h5>
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <label class="small fw-bold text-body">Horas de Ponta</label>
-                    <input type="number" step="0.0001" name="bte_pot_ponta" class="form-control border-primary bg-body text-body" value="{{ config.BTE.pot_ponta }}">
+            <h5 class="text-primary border-bottom pb-2 mb-4 mt-5"><i class="fa-solid fa-industry me-2"></i>BTE (≥ 41.41 kW) - Potência (€/kW dia)</h5>
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <div class="card border-warning shadow-sm h-100">
+                        <div class="card-header bg-warning bg-opacity-10 text-dark fw-bold"><i class="fa-solid fa-bolt text-warning me-2"></i>Energia Normal</div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="small fw-bold text-body">Horas de Ponta</label>
+                                    <input type="number" step="0.0001" name="bte_en_pot_ponta" class="form-control border-warning bg-body text-body" value="{{ config.BTE.EN.pot_ponta }}">
+                                </div>
+                                <div class="col-12">
+                                    <label class="small fw-bold text-body">Potência Contratada</label>
+                                    <input type="number" step="0.0001" name="bte_en_pot_cont" class="form-control border-warning bg-body text-body" value="{{ config.BTE.EN.pot_contratada }}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="col-md-4">
-                    <label class="small fw-bold text-body">Potência Contratada</label>
-                    <input type="number" step="0.0001" name="bte_pot_cont" class="form-control border-primary bg-body text-body" value="{{ config.BTE.pot_contratada }}">
+                <div class="col-md-6">
+                    <div class="card border-success shadow-sm h-100">
+                        <div class="card-header bg-success bg-opacity-10 text-success fw-bold"><i class="fa-solid fa-leaf text-success me-2"></i>Energia Verde</div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="small fw-bold text-body">Horas de Ponta</label>
+                                    <input type="number" step="0.0001" name="bte_ev_pot_ponta" class="form-control border-success bg-body text-body" value="{{ config.BTE.EV.pot_ponta }}">
+                                </div>
+                                <div class="col-12">
+                                    <label class="small fw-bold text-body">Potência Contratada</label>
+                                    <input type="number" step="0.0001" name="bte_ev_pot_cont" class="form-control border-success bg-body text-body" value="{{ config.BTE.EV.pot_contratada }}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

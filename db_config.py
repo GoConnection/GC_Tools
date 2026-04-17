@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import os
 import re
+import json
 from typing import Any, Dict, List, Tuple
 
 import pyodbc
@@ -237,24 +238,49 @@ def fetch_full_config() -> Dict[str, Any]:
 
             gn_config = {"fixo_12m": fixo_12m, "fixo_24m": fixo_24m, "tar": tar}
 
+            # ==========================================
+            # NOVO: LEITURA DAS POTÊNCIAS BTN COM CICLO / EV
+            # ==========================================
             cur.execute(
                 f"""
-                SELECT KvaLabel, UnitPrice
+                SELECT KvaLabel, UnitPrice, EnergiaVerde, Ciclo
                 FROM {_q("ElecBtnPowerPrice")}
                 ORDER BY SortOrder
                 """
             )
-            potencias = {str(r[0]).strip(): _float(r[1]) for r in cur.fetchall()}
+            
+            pot_en = {}
+            pot_ev = {'SIM': {}, 'BIH': {}, 'TRI': {}, 'TRI+': {}}
+            
+            for r in cur.fetchall():
+                kva = str(r[0]).strip()
+                price = _float(r[1])
+                is_verde = int(r[2]) if r[2] is not None else 0
+                ciclo = str(r[3]).strip().upper() if r[3] else None
+                
+                if is_verde == 1 and ciclo:
+                    if ciclo not in pot_ev:
+                        pot_ev[ciclo] = {}
+                    pot_ev[ciclo][kva] = price
+                elif is_verde == 0 or is_verde is None:
+                    pot_en[kva] = price
 
+            # ==========================================
+            # NOVO: LEITURA DAS POTÊNCIAS BTE (NORMAL vs VERDE)
+            # ==========================================
             cur.execute(
-                f"SELECT PotPonta, PotContratada FROM {_q('ElecBtePowerTerm')} WHERE Id = 1"
+                f"SELECT PotPonta, PotContratada, EnergiaVerde FROM {_q('ElecBtePowerTerm')}"
             )
-            bte_row = cur.fetchone()
-            if not bte_row:
-                raise DatabaseConfigError(
-                    "Missing row in ElecBtePowerTerm with Id = 1."
-                )
-            pot_ponta, pot_contratada = _float(bte_row[0]), _float(bte_row[1])
+            bte_rows = cur.fetchall()
+            pot_ponta_en, pot_contratada_en = 0.0, 0.0
+            pot_ponta_ev, pot_contratada_ev = 0.0, 0.0
+            
+            for r in bte_rows:
+                is_verde = int(r[2]) if r[2] is not None else 0
+                if is_verde == 1:
+                    pot_ponta_ev, pot_contratada_ev = _float(r[0]), _float(r[1])
+                else:
+                    pot_ponta_en, pot_contratada_en = _float(r[0]), _float(r[1])
 
             cur.execute(
                 f"""
@@ -297,7 +323,7 @@ def fetch_full_config() -> Dict[str, Any]:
                     )
                 tmap: Dict[str, Dict[str, float]] = {}
                 for prof in (
-                    ["SIM", "BIH", "TRI"]
+                    ["SIM", "BIH", "TRI", "TRI+"]
                     if seg == "BTN"
                     else ["TETRA"]
                 ):
@@ -308,17 +334,34 @@ def fetch_full_config() -> Dict[str, Any]:
                         tmap[prof] = {"p1": 0.0, "p2": 0.0, "p3": 0.0, "p4": 0.0}
                 return {"produtos": produtos, "tar": tmap}
 
+            # ==========================================
+            # NOVO: DISTRIBUIÇÃO DAS POTÊNCIAS NO EE_CONFIG (BTN e BTE)
+            # ==========================================
+            ee_en_block = ee_block("BTN", "EN")
+            ee_en_block["potencias"] = pot_en
+            
+            ee_ev_block = ee_block("BTN", "EV")
+            ee_ev_block["potencias"] = pot_ev
+
+            ee_bte_en_block = ee_block("BTE", "EN")
+            ee_bte_en_block["pot_ponta"] = pot_ponta_en
+            ee_bte_en_block["pot_contratada"] = pot_contratada_en
+
+            ee_bte_ev_block = ee_block("BTE", "EV")
+            ee_bte_ev_block["pot_ponta"] = pot_ponta_ev
+            ee_bte_ev_block["pot_contratada"] = pot_contratada_ev
+
             ee_config = {
                 "BTN": {
-                    "potencias": potencias,
-                    "EN": ee_block("BTN", "EN"),
-                    "EV": ee_block("BTN", "EV"),
+                    "potencias": pot_en, # Mantido para garantir que nada para trás se quebra
+                    "EN": ee_en_block,
+                    "EV": ee_ev_block,
                 },
                 "BTE": {
-                    "pot_ponta": pot_ponta,
-                    "pot_contratada": pot_contratada,
-                    "EN": ee_block("BTE", "EN"),
-                    "EV": ee_block("BTE", "EV"),
+                    "pot_ponta": pot_ponta_en,
+                    "pot_contratada": pot_contratada_en,
+                    "EN": ee_bte_en_block,
+                    "EV": ee_bte_ev_block,
                 },
             }
 
@@ -421,24 +464,127 @@ def save_electricity_config(ee: Dict[str, Any]) -> None:
         with _conn() as conn:
             cur = conn.cursor()
 
-            for k, v in ee["BTN"]["potencias"].items():
+            # ==========================================
+            # NOVO: LÓGICA DE GRAVAÇÃO (INSERT/UPDATE) DOS CICLOS BTN
+            # ==========================================
+            cur.execute(f"SELECT KvaLabel, SortOrder FROM {_q('ElecBtnPowerPrice')} WHERE EnergiaVerde = 0 OR EnergiaVerde IS NULL")
+            sort_orders = {str(r[0]).strip(): int(r[1]) for r in cur.fetchall()}
+
+            # GRAVA POTÊNCIAS DA ENERGIA NORMAL BTN
+            if "EN" in ee["BTN"] and "potencias" in ee["BTN"]["EN"]:
+                for k, v in ee["BTN"]["EN"]["potencias"].items():
+                    k_str = str(k).strip()
+                    v_float = _float(v)
+                    cur.execute(
+                        f"""
+                        UPDATE {_q("ElecBtnPowerPrice")}
+                        SET UnitPrice = ?
+                        WHERE KvaLabel = ? AND (EnergiaVerde = 0 OR EnergiaVerde IS NULL)
+                        """,
+                        (v_float, k_str),
+                    )
+                    if cur.rowcount == 0:
+                        so = sort_orders.get(k_str, 99)
+                        cur.execute(
+                            f"""
+                            INSERT INTO {_q("ElecBtnPowerPrice")}
+                            (KvaLabel, UnitPrice, SortOrder, EnergiaVerde, Ciclo)
+                            VALUES (?, ?, ?, 0, NULL)
+                            """,
+                            (k_str, v_float, so)
+                        )
+
+            # GRAVA POTÊNCIAS DA ENERGIA VERDE (DIVIDIDAS POR CICLO) BTN
+            if "EV" in ee["BTN"] and "potencias" in ee["BTN"]["EV"]:
+                for ciclo, pot_dict in ee["BTN"]["EV"]["potencias"].items():
+                    for k, v in pot_dict.items():
+                        k_str = str(k).strip()
+                        v_float = _float(v)
+                        cur.execute(
+                            f"""
+                            UPDATE {_q("ElecBtnPowerPrice")}
+                            SET UnitPrice = ?
+                            WHERE KvaLabel = ? AND EnergiaVerde = 1 AND Ciclo = ?
+                            """,
+                            (v_float, k_str, ciclo),
+                        )
+                        if cur.rowcount == 0:
+                            so = sort_orders.get(k_str, 99)
+                            cur.execute(
+                                f"""
+                                INSERT INTO {_q("ElecBtnPowerPrice")}
+                                (KvaLabel, UnitPrice, SortOrder, EnergiaVerde, Ciclo)
+                                VALUES (?, ?, ?, 1, ?)
+                                """,
+                                (k_str, v_float, so, ciclo)
+                            )
+            
+            # RETROCOMPATIBILIDADE BTN
+            elif "potencias" in ee["BTN"]:
+                for k, v in ee["BTN"]["potencias"].items():
+                    cur.execute(
+                        f"""
+                        UPDATE {_q("ElecBtnPowerPrice")}
+                        SET UnitPrice = ?
+                        WHERE KvaLabel = ? AND (EnergiaVerde = 0 OR EnergiaVerde IS NULL)
+                        """,
+                        (_float(v), str(k).strip()),
+                    )
+
+
+            # ==========================================
+            # NOVO: LÓGICA DE GRAVAÇÃO (INSERT/UPDATE) BTE
+            # ==========================================
+            # GRAVA POTÊNCIAS BTE DA ENERGIA NORMAL
+            if "EN" in ee["BTE"] and "pot_ponta" in ee["BTE"]["EN"]:
                 cur.execute(
                     f"""
-                    UPDATE {_q("ElecBtnPowerPrice")}
-                    SET UnitPrice = ?
-                    WHERE KvaLabel = ?
+                    UPDATE {_q("ElecBtePowerTerm")}
+                    SET PotPonta = ?, PotContratada = ?
+                    WHERE EnergiaVerde = 0 OR EnergiaVerde IS NULL
                     """,
-                    (_float(v), str(k).strip()),
+                    (_float(ee["BTE"]["EN"]["pot_ponta"]), _float(ee["BTE"]["EN"]["pot_contratada"])),
                 )
+                if cur.rowcount == 0:
+                    cur.execute(
+                        f"""
+                        INSERT INTO {_q("ElecBtePowerTerm")}
+                        (PotPonta, PotContratada, EnergiaVerde)
+                        VALUES (?, ?, 0)
+                        """,
+                        (_float(ee["BTE"]["EN"]["pot_ponta"]), _float(ee["BTE"]["EN"]["pot_contratada"]))
+                    )
 
-            cur.execute(
-                f"""
-                UPDATE {_q("ElecBtePowerTerm")}
-                SET PotPonta = ?, PotContratada = ?
-                WHERE Id = 1
-                """,
-                (_float(ee["BTE"]["pot_ponta"]), _float(ee["BTE"]["pot_contratada"])),
-            )
+            # GRAVA POTÊNCIAS BTE DA ENERGIA VERDE
+            if "EV" in ee["BTE"] and "pot_ponta" in ee["BTE"]["EV"]:
+                cur.execute(
+                    f"""
+                    UPDATE {_q("ElecBtePowerTerm")}
+                    SET PotPonta = ?, PotContratada = ?
+                    WHERE EnergiaVerde = 1
+                    """,
+                    (_float(ee["BTE"]["EV"]["pot_ponta"]), _float(ee["BTE"]["EV"]["pot_contratada"])),
+                )
+                if cur.rowcount == 0:
+                    cur.execute(
+                        f"""
+                        INSERT INTO {_q("ElecBtePowerTerm")}
+                        (PotPonta, PotContratada, EnergiaVerde)
+                        VALUES (?, ?, 1)
+                        """,
+                        (_float(ee["BTE"]["EV"]["pot_ponta"]), _float(ee["BTE"]["EV"]["pot_contratada"]))
+                    )
+            
+            # RETROCOMPATIBILIDADE BTE
+            elif "pot_ponta" in ee["BTE"]:
+                cur.execute(
+                    f"""
+                    UPDATE {_q("ElecBtePowerTerm")}
+                    SET PotPonta = ?, PotContratada = ?
+                    WHERE EnergiaVerde = 0 OR EnergiaVerde IS NULL
+                    """,
+                    (_float(ee["BTE"]["pot_ponta"]), _float(ee["BTE"]["pot_contratada"])),
+                )
 
             def upsert_tar(seg: str, energy: str, prof: str, d: Dict[str, float]) -> None:
                 cur.execute(
@@ -538,3 +684,228 @@ def clear_electricity_products_only() -> None:
         ) from e
     finally:
         conn.close()
+
+# ==========================================
+# NOTAS CRM (SQL SERVER INTEGRATION)
+# ==========================================
+
+def load_notes_sql() -> Dict[str, List[Dict[str, Any]]]:
+    """Lê todas as leads da base de dados SQL e converte de volta para o formato JSON legado para o app.py."""
+    try:
+        with _conn() as conn:
+            cur = conn.cursor()
+            cur.execute(f"SELECT Id, OperadorToken, Title, Subtitle, NIPC, Phone, Descricao, Status, FollowupDate, FollowupTime, Scenarios, LockedFields, History, Archived, LastUpdated, CreatedAt FROM {_q('CRM_Leads')}")
+            
+            data = {}
+            for row in cur.fetchall():
+                token = str(row.OperadorToken).strip()
+                if token not in data:
+                    data[token] = []
+                
+                lead = {
+                    "id": str(row.Id),
+                    "title": str(row.Title) if row.Title else "",
+                    "subtitle": str(row.Subtitle) if row.Subtitle else "",
+                    "nipc": str(row.NIPC) if row.NIPC else "",
+                    "phone": str(row.Phone) if row.Phone else "",
+                    "desc": str(row.Descricao) if row.Descricao else "",
+                    "status": str(row.Status) if row.Status else "lead",
+                    "followup_date": str(row.FollowupDate) if row.FollowupDate else "",
+                    "followup_time": str(row.FollowupTime) if row.FollowupTime else "",
+                    "archived": bool(row.Archived),
+                    "last_updated": str(row.LastUpdated) if row.LastUpdated else "",
+                    "created_at": str(row.CreatedAt) if row.CreatedAt else ""
+                }
+                
+                # Descodificar JSON string de volta para as estruturas originais
+                try: lead["scenarios"] = json.loads(row.Scenarios) if row.Scenarios else []
+                except: lead["scenarios"] = []
+                
+                try: lead["locked_fields"] = json.loads(row.LockedFields) if row.LockedFields else {}
+                except: lead["locked_fields"] = {}
+                
+                try: lead["history"] = json.loads(row.History) if row.History else []
+                except: lead["history"] = []
+                
+                data[token].append(lead)
+            
+            return data
+    except Exception as e:
+        print(f"Erro a carregar as notas do SQL: {e}")
+        return {}
+
+
+def save_notes_sql(data: Dict[str, List[Dict[str, Any]]]) -> None:
+    """Grava o dicionário de notas (formato JSON legado) diretamente na tabela SQL através de UPSERT."""
+    try:
+        with _conn() as conn:
+            cur = conn.cursor()
+            
+            for token, leads in data.items():
+                for lead in leads:
+                    lead_id = lead.get("id")
+                    if not lead_id: continue
+                    
+                    scenarios_json = json.dumps(lead.get("scenarios", []), ensure_ascii=False)
+                    locked_json = json.dumps(lead.get("locked_fields", {}), ensure_ascii=False)
+                    history_json = json.dumps(lead.get("history", []), ensure_ascii=False)
+                    archived_bit = 1 if lead.get("archived") else 0
+                    
+                    cur.execute(f"SELECT Id FROM {_q('CRM_Leads')} WHERE Id = ?", (lead_id,))
+                    exists = cur.fetchone()
+                    
+                    if exists:
+                        cur.execute(f"""
+                            UPDATE {_q('CRM_Leads')}
+                            SET OperadorToken = ?, Title = ?, Subtitle = ?, NIPC = ?, Phone = ?, 
+                                Descricao = ?, Status = ?, FollowupDate = ?, FollowupTime = ?, 
+                                Scenarios = ?, LockedFields = ?, History = ?, Archived = ?, 
+                                LastUpdated = ?, CreatedAt = ?
+                            WHERE Id = ?
+                        """, (
+                            token, lead.get("title", ""), lead.get("subtitle", ""), lead.get("nipc", ""), 
+                            lead.get("phone", ""), lead.get("desc", ""), lead.get("status", "lead"), 
+                            lead.get("followup_date", ""), lead.get("followup_time", ""),
+                            scenarios_json, locked_json, history_json, archived_bit, 
+                            lead.get("last_updated", ""), lead.get("created_at", ""),
+                            lead_id
+                        ))
+                    else:
+                        cur.execute(f"""
+                            INSERT INTO {_q('CRM_Leads')} 
+                            (Id, OperadorToken, Title, Subtitle, NIPC, Phone, Descricao, Status, 
+                            FollowupDate, FollowupTime, Scenarios, LockedFields, History, Archived, 
+                            LastUpdated, CreatedAt)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            lead_id, token, lead.get("title", ""), lead.get("subtitle", ""), lead.get("nipc", ""), 
+                            lead.get("phone", ""), lead.get("desc", ""), lead.get("status", "lead"), 
+                            lead.get("followup_date", ""), lead.get("followup_time", ""),
+                            scenarios_json, locked_json, history_json, archived_bit, 
+                            lead.get("last_updated", ""), lead.get("created_at", "")
+                        ))
+            
+            conn.commit()
+    except pyodbc.Error as e:
+        raise DatabaseConfigError(f"Erro de base de dados a guardar as notas CRM: {e}") from e
+
+# ==========================================
+# CHAT & BROADCAST (SQL SERVER INTEGRATION)
+# ==========================================
+
+def load_chat_sql() -> Dict[str, Any]:
+    """Lê as mensagens da tabela unificada simulando a estrutura original do JSON."""
+    try:
+        with _conn() as conn:
+            cur = conn.cursor()
+            
+            # Carregar o último Broadcast (Top 1 mais recente)
+            cur.execute(f"""
+                SELECT TOP 1 Id, MessageText, Timestamp 
+                FROM {_q('calculadora_mensagens')} 
+                WHERE TipoMensagem = 'broadcast' 
+                ORDER BY CreatedAt DESC
+            """)
+            b_row = cur.fetchone()
+            broadcast_data = {}
+            if b_row:
+                broadcast_data = {
+                    "id": str(b_row.Id),
+                    "text": str(b_row.MessageText),
+                    "timestamp": str(b_row.Timestamp)
+                }
+            
+            # Carregar as mensagens privadas (limitado às últimas 1000 para não estourar a memória)
+            # Carregamos em DESC para ter as mais novas, e depois ordenamos ASC no app
+            cur.execute(f"""
+                SELECT Id, TokenId, Sender, MessageText, Timestamp, IsReadAdmin, IsReadOp 
+                FROM (
+                    SELECT TOP 1000 Id, TokenId, Sender, MessageText, Timestamp, IsReadAdmin, IsReadOp, CreatedAt
+                    FROM {_q('calculadora_mensagens')}
+                    WHERE TipoMensagem = 'privado'
+                    ORDER BY CreatedAt DESC
+                ) sub
+                ORDER BY sub.CreatedAt ASC
+            """)
+            
+            messages = []
+            for row in cur.fetchall():
+                messages.append({
+                    "id": str(row.Id),
+                    "token_id": str(row.TokenId) if row.TokenId else "",
+                    "sender": str(row.Sender),
+                    "text": str(row.MessageText),
+                    "timestamp": str(row.Timestamp),
+                    "is_read_admin": bool(row.IsReadAdmin),
+                    "is_read_op": bool(row.IsReadOp)
+                })
+                
+            return {"messages": messages, "broadcast": broadcast_data}
+    except Exception as e:
+        print(f"Erro a carregar o chat do SQL: {e}")
+        return {"messages": [], "broadcast": {}}
+
+
+def save_chat_sql(data: Dict[str, Any]) -> None:
+    """Grava as mensagens novas e atualiza os estados lidos via UPSERT."""
+    try:
+        with _conn() as conn:
+            cur = conn.cursor()
+            
+            # 1. Guardar Mensagens Privadas
+            messages = data.get("messages", [])
+            for msg in messages:
+                msg_id = msg.get("id")
+                if not msg_id: continue
+                
+                # Upsert: Verifica se existe
+                cur.execute(f"SELECT Id FROM {_q('calculadora_mensagens')} WHERE Id = ?", (msg_id,))
+                exists = cur.fetchone()
+                
+                if exists:
+                    # Se existe, atualizamos apenas se foi lido (o texto nunca muda no chat)
+                    cur.execute(f"""
+                        UPDATE {_q('calculadora_mensagens')}
+                        SET IsReadAdmin = ?, IsReadOp = ?
+                        WHERE Id = ?
+                    """, (
+                        1 if msg.get("is_read_admin") else 0,
+                        1 if msg.get("is_read_op") else 0,
+                        msg_id
+                    ))
+                else:
+                    # Inserir nova mensagem
+                    cur.execute(f"""
+                        INSERT INTO {_q('calculadora_mensagens')} 
+                        (Id, TipoMensagem, TokenId, Sender, MessageText, Timestamp, IsReadAdmin, IsReadOp)
+                        VALUES (?, 'privado', ?, ?, ?, ?, ?, ?)
+                    """, (
+                        msg_id,
+                        msg.get("token_id", ""),
+                        msg.get("sender", ""),
+                        msg.get("text", ""),
+                        msg.get("timestamp", ""),
+                        1 if msg.get("is_read_admin") else 0,
+                        1 if msg.get("is_read_op") else 0
+                    ))
+                    
+            # 2. Guardar novo Broadcast (se houver)
+            broadcast = data.get("broadcast", {})
+            b_id = broadcast.get("id")
+            if b_id:
+                cur.execute(f"SELECT Id FROM {_q('calculadora_mensagens')} WHERE Id = ?", (b_id,))
+                if not cur.fetchone():
+                    # Os Broadcasts inserem-se sempre como registos novos (para manter histórico)
+                    cur.execute(f"""
+                        INSERT INTO {_q('calculadora_mensagens')} 
+                        (Id, TipoMensagem, TokenId, Sender, MessageText, Timestamp, IsReadAdmin, IsReadOp)
+                        VALUES (?, 'broadcast', NULL, 'Admin', ?, ?, 1, 1)
+                    """, (
+                        b_id,
+                        broadcast.get("text", ""),
+                        broadcast.get("timestamp", "")
+                    ))
+                    
+            conn.commit()
+    except pyodbc.Error as e:
+        raise DatabaseConfigError(f"Erro de base de dados a guardar o chat: {e}") from e

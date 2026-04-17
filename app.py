@@ -28,6 +28,10 @@ from db_config import (
     persist_imported_products,
     save_electricity_config,
     save_gas_config,
+    load_notes_sql,
+    save_notes_sql,
+    load_chat_sql,
+    save_chat_sql,
 )
 from keyvault import KeyVaultConfigurationError, apply_key_vault_secrets_to_app
 from msal_auth import (
@@ -197,31 +201,43 @@ def calc_ele():
         if len(lista_p) > 0:
             if p_idx >= len(lista_p): p_idx = 0
             prod = lista_p[p_idx]
-            tar = cfg[seg][t_ee]['tar'][prod['tipo']]
+            
+            ciclo_real = 'SIM'
+            if safe_float(prod.get('p4', 0)) > 0: ciclo_real = 'TRI+'
+            elif safe_float(prod.get('p3', 0)) > 0: ciclo_real = 'TRI'
+            elif safe_float(prod.get('p2', 0)) > 0: ciclo_real = 'BIH'
+            
+            tipo_tar = ciclo_real if seg == 'BTN' else 'TETRA'
+            tar = cfg[seg][t_ee]['tar'].get(tipo_tar, {"p1": 0.0, "p2": 0.0, "p3": 0.0, "p4": 0.0})
+            
             dias = safe_int(request.form.get('dias', 30))
             
             nos_en_t = 0; cli_en_t = 0; det_h = []
             for i in range(1, 5):
                 c = safe_float(request.form.get(f'cons_p{i}'))
                 if c > 0 or i == 1:
-                    nu = prod[f'p{i}'] if t_ee == 'EV' else prod[f'p{i}'] + tar[f'p{i}']
+                    nu = prod[f'p{i}'] if t_ee == 'EV' else prod[f'p{i}'] + tar.get(f'p{i}', 0.0)
                     nt = c * nu
                     nos_en_t += nt
                     cu = safe_float(request.form.get(f'c_en_b_p{i}')) + safe_float(request.form.get(f'c_en_t_p{i}'))
                     ct = c * cu
                     cli_en_t += ct
-                    det_h.append({"p": f"P{i}", "c": c, "nu_base": round(prod[f'p{i}'], 6), "nu_tar": round(tar[f'p{i}'], 6) if t_ee == 'EN' else 0, "nu": round(nu, 6), "nt": round(nt, 2), "cu": round(cu, 6), "ct": round(ct, 2)})
+                    det_h.append({"p": f"P{i}", "c": c, "nu_base": round(prod[f'p{i}'], 6), "nu_tar": round(tar.get(f'p{i}', 0.0), 6) if t_ee == 'EN' else 0, "nu": round(nu, 6), "nt": round(nt, 2), "cu": round(cu, 6), "ct": round(ct, 2)})
 
             if seg == 'BTN':
                 pot_k = request.form.get('pot_btn', '1.15')
-                nos_p_u = cfg['BTN']['potencias'].get(pot_k, 0.0573)
+                if t_ee == 'EV':
+                    nos_p_u = cfg['BTN']['EV']['potencias'].get(ciclo_real, {}).get(pot_k, 0.0)
+                else:
+                    nos_p_u = cfg['BTN']['EN']['potencias'].get(pot_k, 0.0573)
+                
                 cli_p_u = safe_float(request.form.get('c_pot_b')) + safe_float(request.form.get('c_pot_t'))
                 nos_p_t = dias * nos_p_u
                 cli_p_t = dias * cli_p_u
                 p_label = f"{pot_k} kVA"
             else:
                 pk, ck = safe_float(request.form.get('bte_ponta_kw')), safe_float(request.form.get('bte_cont_kw'))
-                nos_p_u = (pk * cfg['BTE']['pot_ponta']) + (ck * cfg['BTE']['pot_contratada'])
+                nos_p_u = (pk * cfg['BTE'][t_ee]['pot_ponta']) + (ck * cfg['BTE'][t_ee]['pot_contratada'])
                 cli_p_u = (pk * (safe_float(request.form.get('c_ponta_b')) + safe_float(request.form.get('c_ponta_t'))) + ck * (safe_float(request.form.get('c_cont_b')) + safe_float(request.form.get('c_cont_t'))))
                 nos_p_t = dias * nos_p_u
                 cli_p_t = dias * cli_p_u
@@ -244,16 +260,24 @@ def sniper_ele():
     seg = request.form.get('segmento', 'BTN')
     dias = safe_int(request.form.get('dias', 30))
 
+    c1 = safe_float(request.form.get('cons_p1'))
+    c2 = safe_float(request.form.get('cons_p2'))
+    c3 = safe_float(request.form.get('cons_p3'))
+    c4 = safe_float(request.form.get('cons_p4'))
+
+    ciclo_cliente = 'SIM'
+    if c4 > 0: ciclo_cliente = 'TRI+'
+    elif c3 > 0: ciclo_cliente = 'TRI'
+    elif c2 > 0: ciclo_cliente = 'BIH'
+
     cli_en_t = sum(safe_float(request.form.get(f'cons_p{i}')) * (safe_float(request.form.get(f'c_en_b_p{i}')) + safe_float(request.form.get(f'c_en_t_p{i}'))) for i in range(1, 5))
 
     if seg == 'BTN':
         pot_k = request.form.get('pot_btn', '1.15')
         cli_p_t = dias * (safe_float(request.form.get('c_pot_b')) + safe_float(request.form.get('c_pot_t')))
-        nos_p_t = dias * cfg['BTN']['potencias'].get(pot_k, 0.0573)
     else:
         pk, ck = safe_float(request.form.get('bte_ponta_kw')), safe_float(request.form.get('bte_cont_kw'))
         cli_p_t = dias * (pk * (safe_float(request.form.get('c_ponta_b')) + safe_float(request.form.get('c_ponta_t'))) + ck * (safe_float(request.form.get('c_cont_b')) + safe_float(request.form.get('c_cont_t'))))
-        nos_p_t = dias * ((pk * cfg['BTE']['pot_ponta']) + (ck * cfg['BTE']['pot_contratada']))
 
     cli_total = cli_en_t + cli_p_t
 
@@ -262,10 +286,31 @@ def sniper_ele():
         if not lista_p: return []
         resultados = []
         for idx, prod in enumerate(lista_p):
-            tar = cfg[seg][tipo_ee]['tar'][prod['tipo']]
-            nos_en_t = sum(safe_float(request.form.get(f'cons_p{i}')) * (prod[f'p{i}'] if tipo_ee == 'EV' else prod[f'p{i}'] + tar[f'p{i}']) for i in range(1, 5))
-            nos_total = nos_en_t + nos_p_t
+            ciclo_produto = 'SIM'
+            if safe_float(prod.get('p4', 0)) > 0: ciclo_produto = 'TRI+'
+            elif safe_float(prod.get('p3', 0)) > 0: ciclo_produto = 'TRI'
+            elif safe_float(prod.get('p2', 0)) > 0: ciclo_produto = 'BIH'
+
+            if seg == 'BTN' and ciclo_produto != ciclo_cliente:
+                continue
+
+            tipo_tar = ciclo_produto if seg == 'BTN' else 'TETRA'
+            tar = cfg[seg][tipo_ee]['tar'].get(tipo_tar, {"p1": 0.0, "p2": 0.0, "p3": 0.0, "p4": 0.0})
+            
+            nos_en_t = sum(safe_float(request.form.get(f'cons_p{i}')) * (prod[f'p{i}'] if tipo_ee == 'EV' else prod[f'p{i}'] + tar.get(f'p{i}', 0.0)) for i in range(1, 5))
+            
+            if seg == 'BTN':
+                if tipo_ee == 'EV':
+                    nos_p_u = cfg['BTN']['EV']['potencias'].get(ciclo_produto, {}).get(pot_k, 0.0)
+                else:
+                    nos_p_u = cfg['BTN']['EN']['potencias'].get(pot_k, 0.0573)
+                prod_nos_p_t = dias * nos_p_u
+            else:
+                prod_nos_p_t = dias * ((pk * cfg['BTE'][tipo_ee]['pot_ponta']) + (ck * cfg['BTE'][tipo_ee]['pot_contratada']))
+
+            nos_total = nos_en_t + prod_nos_p_t
             resultados.append({"idx": idx, "nome": prod['nome'], "nos_total": round(nos_total, 2), "poup_anual": round(((cli_total - nos_total) / max(dias, 1)) * 365, 2), "tipo": tipo_ee})
+        
         resultados.sort(key=lambda x: x['poup_anual'], reverse=True)
         return resultados[:2] 
 
@@ -285,9 +330,11 @@ def sniper_ele():
         else:
             veredicto = f"🌱 Opção Eco: Passar para Energia Verde fica a apenas +{round(diff_mensal, 2)}€/mês que a Normal."
     elif top_en:
-        veredicto = "⚡ Apenas Energia Normal disponível no catálogo para este segmento."
+        veredicto = f"⚡ Apenas Energia Normal disponível no catálogo para o ciclo {ciclo_cliente}."
+    elif top_ev:
+        veredicto = f"🌱 Apenas Energia Verde disponível no catálogo para o ciclo {ciclo_cliente}."
     else:
-        veredicto = "🌱 Apenas Energia Verde disponível no catálogo para este segmento."
+        veredicto = f"❌ Não existem produtos disponíveis no catálogo que correspondam ao ciclo {ciclo_cliente}."
 
     return jsonify({ 
         "cli_total": round(cli_total, 2), 
@@ -302,10 +349,77 @@ def config_ele():
     cfg = full["EE_CONFIG"]
     if request.method == 'POST':
         action = request.form.get('action')
+        
         if action == 'clear':
             clear_electricity_products_only()
             flash('Base apagada!', 'info')
             return redirect(url_for('config_ele'))
+            
+        elif action == 'import':
+            csv_data = request.form.get('csv_data')
+            if csv_data:
+                linhas = csv_data.strip().split('\n')
+                sucessos = 0
+                imported = []
+                counts = {}
+
+                for linha in linhas:
+                    linha = linha.strip()
+                    if not linha: continue
+
+                    if '\t' in linha: partes = linha.split('\t')
+                    elif ';' in linha: partes = linha.split(';')
+                    else: partes = linha.split(',')
+
+                    partes = [p.strip() for p in partes]
+
+                    seg = None; ee = None; nome = ""; precos = []
+
+                    for p in partes:
+                        p_up = p.upper().replace('"', '')
+                        p_limpo = p.replace('"', '').strip()
+
+                        if p_up in ['BTN', 'BTE'] and not seg: seg = p_up
+                        elif p_up in ['EN', 'EV'] and not ee: ee = p_up
+                        elif seg and ee and not nome and not p_limpo.replace(',','').replace('.','').replace('-','').isdigit():
+                            if len(p_limpo) > 2: nome = p_limpo
+                        elif nome:
+                            try: precos.append(float(p_limpo.replace(',', '.')))
+                            except: pass
+
+                    if seg and ee and nome:
+                        p1 = precos[0] if len(precos) > 0 else 0
+                        p2 = precos[1] if len(precos) > 1 else 0
+                        p3 = precos[2] if len(precos) > 2 else 0
+                        p4 = precos[3] if len(precos) > 3 else 0
+
+                        tipo = "SIM"
+                        nome_lower = nome.lower()
+
+                        if seg == 'BTE':
+                            tipo = "TETRA"
+                        else:
+                            if 'bihorario' in nome_lower or 'bih' in nome_lower:
+                                tipo = "BIH"
+                                p3, p2, p1 = p2, p1, 0
+                            elif 'trihorario' in nome_lower or 'tri' in nome_lower:
+                                tipo = "TRI"
+                            else:
+                                tipo = "SIM"
+
+                        key = (seg, ee)
+                        counts[key] = counts.get(key, 0) + 1
+                        prod = {
+                            "ordem": counts[key],
+                            "nome": nome, "tipo": tipo, "p1": p1, "p2": p2, "p3": p3, "p4": p4
+                        }
+                        imported.append((seg, ee, prod))
+                        sucessos += 1
+
+                persist_imported_products(imported)
+                flash(f'Fantástico! Importados {sucessos} Produtos do Excel com sucesso.', 'success')
+                return redirect(url_for('config_ele'))
+                
         elif action == 'save':
             for tipo_ee in ['EN', 'EV']:
                 for i, p in enumerate(cfg['BTN'][tipo_ee]['produtos']):
@@ -321,9 +435,32 @@ def config_ele():
                     p['p2'] = safe_float(request.form.get(f"bte_{tipo_ee.lower()}_p2_{i}"))
                     p['p3'] = safe_float(request.form.get(f"bte_{tipo_ee.lower()}_p3_{i}"))
                     p['p4'] = safe_float(request.form.get(f"bte_{tipo_ee.lower()}_p4_{i}"))
-            for k in cfg['BTN']['potencias']: cfg['BTN']['potencias'][k] = safe_float(request.form.get(f"pot_btn_{k}"))
-            cfg['BTE']['pot_ponta'] = safe_float(request.form.get("bte_pot_ponta"))
-            cfg['BTE']['pot_contratada'] = safe_float(request.form.get("bte_pot_cont"))
+            
+            if 'potencias' not in cfg['BTN']['EN']: cfg['BTN']['EN']['potencias'] = {}
+            if 'potencias' not in cfg['BTN']['EV']: cfg['BTN']['EV']['potencias'] = {'SIM': {}, 'BIH': {}, 'TRI': {}, 'TRI+': {}}
+            
+            for k in cfg['BTN']['potencias'].keys():
+                val_en = request.form.get(f"pot_btn_en_{k}")
+                if val_en is not None: cfg['BTN']['EN']['potencias'][k] = safe_float(val_en)
+                
+                for ciclo in ['SIM', 'BIH', 'TRI', 'TRI+']:
+                    val_ev = request.form.get(f"pot_btn_ev_{ciclo}_{k}")
+                    if val_ev is not None: cfg['BTN']['EV']['potencias'][ciclo][k] = safe_float(val_ev)
+            
+            for tipo_ee in ['EN', 'EV']:
+                val_ponta = request.form.get(f"bte_{tipo_ee.lower()}_pot_ponta")
+                if val_ponta is not None: cfg['BTE'][tipo_ee]['pot_ponta'] = safe_float(val_ponta)
+                val_cont = request.form.get(f"bte_{tipo_ee.lower()}_pot_cont")
+                if val_cont is not None: cfg['BTE'][tipo_ee]['pot_contratada'] = safe_float(val_cont)
+
+            for k in cfg['BTN']['potencias']:
+                val = request.form.get(f"pot_btn_{k}")
+                if val is not None: cfg['BTN']['potencias'][k] = safe_float(val)
+            val_bp = request.form.get("bte_pot_ponta")
+            if val_bp is not None: cfg['BTE']['pot_ponta'] = safe_float(val_bp)
+            val_bc = request.form.get("bte_pot_cont")
+            if val_bc is not None: cfg['BTE']['pot_contratada'] = safe_float(val_bc)
+
             _apply_electricity_tar_from_form(cfg)
             save_electricity_config(full["EE_CONFIG"])
             flash('Guardado com sucesso!', 'success')
@@ -356,16 +493,14 @@ def download_template():
         return redirect(url_for('config_ele'))
 
 # ==========================================
-# NOTAS E CRM
+# NOTAS E CRM (Migrado para SQL)
 # ==========================================
-NOTES_FILE = "notes.json"
 
 def load_notes():
-    if not os.path.exists(NOTES_FILE): return {}
-    with open(NOTES_FILE, "r", encoding="utf-8") as f: return json.load(f)
+    return load_notes_sql()
 
 def save_notes(data):
-    with open(NOTES_FILE, "w", encoding="utf-8") as f: json.dump(data, f, ensure_ascii=False, indent=2)
+    save_notes_sql(data)
 
 @app.route('/api/notes', methods=['GET'])
 def get_notes():
@@ -386,6 +521,8 @@ def save_note():
     scenario = req.get('scenario')
     
     now_str = datetime.datetime.now().strftime("%Y-%m-%d")
+    now_time = datetime.datetime.now().strftime("%H:%M:%S")
+    new_log = req.get('new_log', '').strip()
     
     if note_id:
         for n in user_notes:
@@ -396,7 +533,6 @@ def save_note():
                     if len(n['scenarios']) >= 3: n['scenarios'].pop(0)
                     n['scenarios'].append(scenario)
                 else:
-                    # 🚀 LÓGICA DE CADEADOS: Só atualiza se o Admin não bloqueou o campo
                     locks = n.get('locked_fields', {})
                     if not locks.get('title'): n['title'] = req.get('title', n['title'])
                     if not locks.get('subtitle'): n['subtitle'] = req.get('subtitle', n['subtitle'])
@@ -404,23 +540,28 @@ def save_note():
                     if not locks.get('phone'): n['phone'] = req.get('phone', n['phone'])
                     if not locks.get('desc'): n['desc'] = req.get('desc', n['desc'])
                     if not locks.get('status'): n['status'] = req.get('status', n['status'])
-                    
                     n['followup_date'] = f_date
                     n['followup_time'] = f_time
+                    
+                    if new_log:
+                        if 'history' not in n: n['history'] = []
+                        n['history'].append({"text": new_log, "date": now_str, "time": now_time, "author": str(token)})
                 break
     else:
         if len(user_notes) >= 30: return jsonify({"error": "Limite máximo"}), 400
         note_id = str(uuid.uuid4())
+        
+        init_hist = [{"text": "Lead criada", "date": now_str, "time": now_time, "author": str(token)}]
+        if new_log: init_hist.append({"text": new_log, "date": now_str, "time": now_time, "author": str(token)})
+        
         user_notes.append({
             "id": note_id, "title": req.get('title', 'Nova Lead'), "subtitle": req.get('subtitle', ''), 
             "nipc": req.get('nipc', ''), "phone": req.get('phone', ''), 
             "desc": req.get('desc', ''), "status": req.get('status', 'lead'),
             "followup_date": f_date, "followup_time": f_time,
-            "scenarios": [],
-            "archived": False,
-            "locked_fields": {}, # 🚀 Inicializa cadeados vazios
-            "last_updated": now_str,
-            "created_at": now_str
+            "scenarios": [], "archived": False, "locked_fields": {},
+            "history": init_hist,
+            "last_updated": now_str, "created_at": now_str
         })
     
     data[str(token)] = user_notes
@@ -441,7 +582,6 @@ def delete_note(note_id):
     save_notes(data)
     return jsonify({"success": True})
 
-# 🚀 NOVA ROTA DE GESTÃO ADMIN: Mover, Bloquear, Editar e Apagar Cenários
 @app.route('/api/admin/manage_note', methods=['POST'])
 def admin_manage_note():
     if not session.get("admin_logged_in"): 
@@ -450,7 +590,7 @@ def admin_manage_note():
     req = request.json
     source_token = req.get('source_token')
     note_id = req.get('note_id')
-    action = req.get('action') # 'update', 'move', 'delete_scenario'
+    action = req.get('action') 
     
     data = load_notes()
     
@@ -469,26 +609,43 @@ def admin_manage_note():
         return jsonify({"error": "Nota não encontrada."}), 404
 
     if action == 'update':
-        fields = ['title', 'subtitle', 'nipc', 'phone', 'desc', 'status']
+        fields = ['title', 'subtitle', 'nipc', 'phone', 'desc', 'status', 'followup_date', 'followup_time']
         for f in fields:
             if f in req: note_to_action[f] = req[f]
         
         note_to_action['archived'] = req.get('archived', note_to_action.get('archived', False))
         note_to_action['locked_fields'] = req.get('locked_fields', note_to_action.get('locked_fields', {}))
-        note_to_action['last_updated'] = datetime.datetime.now().strftime("%Y-%m-%d")
+        
+        new_log = req.get('new_log', '').strip()
+        now = datetime.datetime.now()
+        now_time = now.strftime("%H:%M:%S")
+        now_str = now.strftime("%Y-%m-%d")
+        
+        if new_log:
+            if 'history' not in note_to_action: note_to_action['history'] = []
+            note_to_action['history'].append({"text": new_log, "date": now_str, "time": now_time, "author": "Admin"})
+            
+            admin_email = session.get("admin_email", "admin")
+            admin_name = admin_email.split('@')[0] if '@' in admin_email else admin_email
+            formatted_date_time = now.strftime("%d-%m-%Y-%H:%M:%S")
+            log_entry = f"{admin_name} - {formatted_date_time}: {new_log}"
+            
+            old_desc = note_to_action.get('desc', '').strip()
+            if old_desc:
+                note_to_action['desc'] = old_desc + f"\n\n{log_entry}"
+            else:
+                note_to_action['desc'] = f"{log_entry}"
+            
+        note_to_action['last_updated'] = now_str
         
     elif action == 'move':
         target_token = req.get('target_token')
         if not target_token: return jsonify({"error": "Token de destino em falta."}), 400
-        
-        # Move de um token para outro
         note_to_move = data[source_token].pop(note_index)
         note_to_move['last_updated'] = datetime.datetime.now().strftime("%Y-%m-%d")
-        
         if target_token not in data: data[target_token] = []
         data[target_token].append(note_to_move)
         
-    # LÓGICA NOVA PARA APAGAR CENÁRIOS INDIVIDUAIS
     elif action == 'delete_scenario':
         scenario_idx = req.get('scenario_index')
         if scenario_idx is not None and 0 <= scenario_idx < len(note_to_action.get('scenarios', [])):
@@ -505,10 +662,8 @@ def admin_notas():
     if not session.get("admin_logged_in"): return redirect(url_for("login"))
     today = datetime.datetime.now() 
     all_notes = load_notes()
+    current_time_str = today.strftime("%H:%M")
     
-    # ==========================================
-    # 🚀 MOTOR DE ANALYTICS / BI DO ADMIN
-    # ==========================================
     lead_velocity = {}
     scenario_counts = {}
     forgotten_leads = []
@@ -516,6 +671,8 @@ def admin_notas():
     for token, notes in all_notes.items():
         velocity_sum = 0
         closed_count = 0
+        
+        notes.sort(key=lambda x: safe_float(x.get('scenarios', [{}])[-1].get('poup_anual', 0)) if x.get('scenarios') else 0, reverse=True)
         
         for n in notes:
             created_str = n.get('created_at', n.get('last_updated', today.strftime("%Y-%m-%d")))
@@ -559,14 +716,13 @@ def admin_notas():
         "forgotten": forgotten_leads
     }
 
-    return render_template('admin_notas.html', all_notes=all_notes, today=today, datetime=datetime, analytics=analytics)
+    return render_template('admin_notas.html', all_notes=all_notes, today=today, datetime=datetime, analytics=analytics, current_time=current_time_str)
 
 @app.route('/admin/export_leads')
 def export_leads():
     if not session.get("admin_logged_in"): return redirect(url_for("login"))
     
     output = io.StringIO()
-    # Adicionadas colunas para Produto e Poupança
     writer = csv.writer(output, delimiter=';') 
     writer.writerow([
         'Operador', 'Estado', 'Titulo', 'Subtitulo', 'NIPC', 'Telefone', 
@@ -580,13 +736,11 @@ def export_leads():
             created = n.get('created_at', 'N/A')
             updated = n.get('last_updated', 'N/A')
             
-            # Extrair dados da última simulação feita (se existir)
             scenarios = n.get('scenarios', [])
             last_prod = "N/A"
             last_poup = "0.00"
             
             if scenarios:
-                # Pegamos no último cenário da lista (o mais recente)
                 s = scenarios[-1]
                 last_prod = s.get('name', 'N/A')
                 last_poup = s.get('poup_anual', '0.00')
@@ -602,29 +756,25 @@ def export_leads():
                 n.get('followup_time', ''), 
                 n.get('desc', '').replace('\n', ' | '), 
                 arq_status,
-                last_prod,   # Nova coluna
-                last_poup,   # Nova coluna
+                last_prod, 
+                last_poup, 
                 created, 
                 updated
             ])
             
     response = Response(output.getvalue().encode('utf-8-sig'), mimetype="text/csv")
-    response.headers["Content-Disposition"] = "attachment; filename=B2B_Leads_" + datetime.datetime.now().strftime("%Y-%m-%d_%Hh%Mm%Ss") + ".csv"
+    response.headers["Content-Disposition"] = "attachment; filename=B2B_Leads_" + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%Sh") + ".csv"
     return response
 
 # ==========================================
-# MOTOR DO CHAT E BROADCAST
+# MOTOR DO CHAT E BROADCAST (Migrado para SQL)
 # ==========================================
-CHAT_FILE = "chat_sql_ready.json"
 
 def load_chat():
-    if not os.path.exists(CHAT_FILE): return {"messages": [], "broadcast": {}}
-    try:
-        with open(CHAT_FILE, "r", encoding="utf-8") as f: return json.load(f)
-    except Exception: return {"messages": [], "broadcast": {}}
+    return load_chat_sql()
 
 def save_chat(data):
-    with open(CHAT_FILE, "w", encoding="utf-8") as f: json.dump(data, f, ensure_ascii=False, indent=2)
+    save_chat_sql(data)
 
 @app.route('/api/broadcast', methods=['POST'])
 def post_broadcast():

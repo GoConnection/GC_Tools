@@ -584,7 +584,6 @@
             } catch (e) {}
         }
 
-        // 🚀 LÓGICA DE SOFT DELETE ATUALIZADA AQUI 
         async function deleteCurrentNote() {
             if (!currentNoteId || !confirm('Deseja mesmo Arquivar esta Lead? Ela vai desaparecer do seu painel, mas o Supervisor pode sempre recuperá-la.')) return;
             try {
@@ -603,7 +602,6 @@
             const filter = document.getElementById('kanban-filter').value;
             list.innerHTML = '';
             
-            // 🚀 IGNORA OS ARQUIVADOS AUTOMATICAMENTE 
             let activeNotes = userNotes.filter(n => !n.archived);
             let filteredNotes = filter !== 'all' ? activeNotes.filter(n => (n.status || 'lead') === filter) : activeNotes;
             
@@ -677,7 +675,7 @@
             document.getElementById('note-desc').value = note.desc || '';
             document.getElementById('note-status').value = note.status || 'lead';
 
-            // 🚀 RENDERIZAR CENÁRIOS DA TIME MACHINE COM OS CARDS MODERNOS
+            // 🚀 RENDERIZAR CENÁRIOS COM COMPATIBILIDADE PARA POUPANÇA ANUAL
             const scList = document.getElementById('note-scenarios-list');
             if(scList) {
                 if(note.scenarios && note.scenarios.length > 0) {
@@ -685,7 +683,7 @@
                         <div class="scenario-card p-3 mb-2" onclick='carregarCenarioTimeMachine(${JSON.stringify(s.data)})'>
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <span class="fw-bold text-dark" style="font-size: 14px;">${s.name}</span>
-                                <span class="badge bg-success shadow-sm rounded-pill py-1 px-2">+${s.poup}€/ano</span>
+                                <span class="badge bg-success shadow-sm rounded-pill py-1 px-2">+${s.poup_anual || s.poup || 0}€/ano</span>
                             </div>
                             <div class="d-flex justify-content-between align-items-center text-muted mt-2" style="font-size: 11px;">
                                 <span><i class="fa-solid fa-calendar-day me-1"></i>${s.date}</span>
@@ -754,9 +752,10 @@
             const formData = new FormData(formElement);
             const formObj = Object.fromEntries(formData.entries());
             
+            // 🚀 CORREÇÃO DO NOME DA VARIÁVEL: AGORA CHAMA-SE poup_anual PARA COINCIDIR COM O ADMIN
             pendingScenarioData = {
                 name: prodName,
-                poup: poupAnual,
+                poup_anual: poupAnual,
                 date: new Date().toLocaleDateString('pt-PT') + ' ' + new Date().toLocaleTimeString('pt-PT').slice(0,5),
                 data: JSON.stringify(formObj)
             };
