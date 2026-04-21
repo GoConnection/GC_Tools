@@ -13,36 +13,71 @@
 
     <style>
         /* Base e Fontes */
-        body { 
-            font-family: 'Inter', sans-serif; 
-            display: flex; 
-            flex-direction: column; 
-            min-height: 100vh; 
-            transition: background-color 0.3s ease, color 0.3s ease;
-        }
-        
-        /* Barra de Navegação Premium */
-        .navbar-custom { 
-            background: linear-gradient(135deg, #0f2027, #203a43, #2c5364); 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15); 
-        }
+        body { font-family: 'Inter', sans-serif; display: flex; flex-direction: column; min-height: 100vh; transition: background-color 0.3s ease, color 0.3s ease; }
+        .navbar-custom { background: linear-gradient(135deg, #0f2027, #203a43, #2c5364); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
         .navbar-custom .navbar-brand { font-weight: 700; letter-spacing: 0.5px; }
         .navbar-custom .nav-link { color: rgba(255,255,255,0.8); transition: all 0.3s ease; }
         .navbar-custom .nav-link:hover, .navbar-custom .nav-link.active { color: #fff; text-shadow: 0 0 8px rgba(255,255,255,0.4); }
-        
-        /* Botão do Modo Escuro */
         #theme-toggle { transition: transform 0.3s ease; }
         #theme-toggle:hover { transform: scale(1.1); }
-
-        /* Animações e Cartões */
         .card-hover { transition: transform 0.3s ease, box-shadow 0.3s ease; }
         .card-hover:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.15) !important; cursor: pointer; }
-        .fade-in { animation: fadeIn 0.6s ease-in-out; }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(15px); }
-            to { opacity: 1; transform: translateY(0); }
+        .fade-in { animation: fadeIn 0.4s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* CRM/NOTAS AVANÇADO */
+        #notes-widget-container { position: fixed; bottom: 25px; left: 25px; z-index: 1050; }
+        #notes-toggle-btn { width: 60px; height: 60px; font-size: 24px; transition: transform 0.2s; box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15); }
+        #notes-panel { 
+            position: absolute; bottom: 75px; left: 0; width: 700px; height: 550px; 
+            background: white; border-radius: 12px; box-shadow: 0 1rem 3rem rgba(0,0,0,0.175);
+            display: flex; flex-direction: column; overflow: hidden; border: 1px solid #dee2e6;
         }
+        .notes-header { background: #fbc02d; padding: 12px 18px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; color: #212529; }
+        .notes-body { display: flex; flex: 1; overflow: hidden; }
+        .notes-sidebar { width: 260px; background: #f8f9fa; border-right: 1px solid #dee2e6; display: flex; flex-direction: column; }
+        .notes-list { flex: 1; overflow-y: auto; padding: 0; margin: 0; list-style: none; }
+        
+        .note-list-item { padding: 12px 14px; border-bottom: 1px solid #dee2e6; cursor: pointer; font-size: 13px; transition: background 0.2s; display: flex; flex-direction: column;}
+        .note-list-item:hover, .note-list-item.active { background: #e9ecef; border-left: 4px solid #fbc02d; }
+        
+        .sidebar-section-title { font-size: 11px; text-transform: uppercase; font-weight: bold; padding: 6px 12px; background: #e9ecef; color: #6c757d; }
+        .agenda-hoje { background: #fff3cd !important; border-left: 4px solid #dc3545 !important; }
+        
+        .notes-main { flex: 1; display: flex; flex-direction: column; background: #f8f9fa; position: relative; }
+        .notes-toolbar { background: #fbc02d; padding: 10px; display: flex; gap: 5px; border-bottom: 1px solid #f0b620; align-items: center; }
+        .note-title { border: none; background: transparent; font-weight: bold; padding: 15px; font-size: 20px; outline: none; border-bottom: 1px dashed #ccc; color: #212529;}
+        .note-footer { padding: 10px 15px; background: #f8f9fa; border-top: 1px dashed #ccc; display: flex; justify-content: flex-end; }
+        #empty-state { display: flex; flex: 1; align-items: center; justify-content: center; flex-direction: column; color: #6c757d; }
+        
+        /* 🚀 NOVAS CORES DOS ESTADOS */
+        .status-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; flex-shrink: 0; margin-right: 6px; border: 1px solid rgba(0,0,0,0.1); }
+        .bg-lead { background-color: #dc3545; }      /* Vermelho: Fria */
+        .bg-contacto { background-color: #0dcaf0; }  /* Azul Claro: Contacto */
+        .bg-negociacao { background-color: #ffc107; } /* Amarelo: Negociação */
+        .bg-fechado { background-color: #198754; }    /* Verde: Fechado */
+
+        /* 🚀 MODERNIZAÇÃO DA TIME MACHINE */
+        .scenario-card { background: #ffffff; border: 1px solid #dee2e6; border-left: 4px solid #198754; border-radius: 8px; transition: all 0.2s ease; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .scenario-card:hover { transform: translateY(-3px); box-shadow: 0 5px 15px rgba(25, 135, 84, 0.15); border-color: #198754; }
+
+        /* WIDGET DE CHAT */
+        #chat-floating-btn { position: fixed; bottom: 25px; right: 25px; z-index: 1055; border-radius: 30px; font-weight: bold; box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.25); transition: transform 0.2s; }
+        #chat-floating-btn:hover { transform: scale(1.05); }
+        .chat-badge { position: absolute; top: -5px; right: -5px; background: #dc3545; color: white; border-radius: 50%; width: 22px; height: 22px; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 2px solid white; }
+        #chat-panel { position: fixed; bottom: 85px; right: 25px; width: 340px; height: 450px; background: white; border-radius: 12px; box-shadow: 0 1rem 3rem rgba(0,0,0,0.25); z-index: 1060; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #dee2e6; }
+        .chat-header { background: #0d6efd; color: white; padding: 12px 15px; font-weight: bold; display:flex; justify-content: space-between; align-items: center; }
+        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; background: #f8f9fa; display: flex; flex-direction: column; gap: 10px; }
+        .chat-msg { padding: 10px 14px; border-radius: 15px; max-width: 85%; font-size: 13.5px; position: relative; }
+        .msg-me { background: #0d6efd; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
+        .msg-them { background: #e9ecef; color: #212529; align-self: flex-start; border-bottom-left-radius: 2px; border: 1px solid #dee2e6; }
+        .msg-sender { font-size: 10px; font-weight: bold; margin-bottom: 2px; opacity: 0.7; }
+        .msg-time { font-size: 9px; position: absolute; bottom: -16px; right: 5px; color: #6c757d; }
+        .chat-input-area { padding: 12px; background: white; border-top: 1px solid #dee2e6; display: flex; gap: 8px; }
+        
+        /* MEGAFONE MODAL ANIMATION */
+        @keyframes siren { 0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); } 70% { box-shadow: 0 0 0 20px rgba(220, 53, 69, 0); } 100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); } }
+        .siren-modal { animation: siren 2s infinite; border: 3px solid #dc3545; }
     </style>
 </head>
 <body class="bg-body">
@@ -67,11 +102,21 @@
                     </li>
                 </ul>
                 <ul class="navbar-nav align-items-center">
+                    
+                    {% if is_admin %}
+                    <li class="nav-item me-3">
+                        <button class="btn btn-danger btn-sm fw-bold shadow-sm" onclick="abrirModalBroadcast()">
+                            <i class="fa-solid fa-bullhorn me-1"></i> Megafone
+                        </button>
+                    </li>
+                    {% endif %}
+
                     <li class="nav-item me-3">
                         <button id="theme-toggle" class="btn btn-outline-light btn-sm rounded-circle d-flex align-items-center justify-content-center" style="width: 35px; height: 35px;" title="Alternar Modo Escuro/Claro">
                             <i class="fa-solid fa-moon"></i>
                         </button>
                     </li>
+                    
                     {% if is_admin %}
                     <li class="nav-item">
                         <a class="nav-link text-warning" href="{{ url_for('logout') }}"><i class="fa-solid fa-right-from-bracket me-1"></i> Sair</a>
@@ -84,12 +129,14 @@
 
                     {% if is_admin %}
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {% if 'config' in request.path %}active fw-bold text-white{% endif %}" href="#" role="button" data-bs-toggle="dropdown">
+                        <a class="nav-link dropdown-toggle {% if 'config' in request.path or 'admin' in request.path %}active fw-bold text-white{% endif %}" href="#" role="button" data-bs-toggle="dropdown">
                             <i class="fa-solid fa-gear me-1"></i> Configurações
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2">
                             <li><a class="dropdown-item py-2 fw-bold" href="{{ url_for('config_ele') }}"><i class="fa-solid fa-bolt text-warning me-2"></i> Tarifários Eletricidade</a></li>
                             <li><a class="dropdown-item py-2 fw-bold" href="{{ url_for('config_gas') }}"><i class="fa-solid fa-fire text-danger me-2"></i> Tarifários Gás</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item py-2 fw-bold text-primary" href="{{ url_for('admin_notas') }}"><i class="fa-solid fa-users me-2"></i> Admin CRM (Notas)</a></li>
                         </ul>
                     </li>
                     {% endif %}
@@ -97,6 +144,58 @@
             </div>
         </div>
     </nav>
+
+    <div class="modal fade" id="modalBroadcast" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+          <div class="modal-header bg-danger text-white">
+            <h5 class="modal-title fw-bold"><i class="fa-solid fa-bullhorn me-2"></i>Enviar Alerta Global</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body bg-body-tertiary">
+            <label class="fw-bold mb-2 text-body">Mensagem a enviar para todos os ecrãs:</label>
+            <textarea id="broadcast-text" class="form-control border-danger mb-3" rows="3" placeholder="Ex: Campanha XPTO ativa. Foquem na Energia Verde!"></textarea>
+            <button class="btn btn-danger w-100 fw-bold shadow" onclick="enviarBroadcast()">DISPARAR ALERTA</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="modalReceberBroadcast" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg siren-modal">
+          <div class="modal-header bg-danger text-white border-0">
+            <h4 class="modal-title fw-bold"><i class="fa-solid fa-triangle-exclamation me-2"></i>ALERTA DO SUPERVISOR</h4>
+          </div>
+          <div class="modal-body bg-white text-center py-5">
+            <h5 id="broadcast-msg-body" class="fw-bold text-dark lh-base"></h5>
+            <p class="small text-muted mt-3 mb-0" id="broadcast-msg-time"></p>
+          </div>
+          <div class="modal-footer bg-light border-0 justify-content-center">
+             <button type="button" class="btn btn-dark fw-bold px-5" data-bs-dismiss="modal">Ciente, vou fechar!</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="modalSaveScenario" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-save me-2"></i>Guardar na Time Machine</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-3">Selecione a que cliente pertence este cálculo. Ele ficará guardado no bloco de notas para recarregar mais tarde.</p>
+                    <select id="saveScenarioLeadSelect" class="form-select form-select-lg border-success fw-bold"></select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-success fw-bold" onclick="confirmarSalvarCenario()"><i class="fa-solid fa-check me-2"></i>Guardar Agora</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="toast-container position-fixed bottom-0 end-0 p-4" style="z-index: 1100;">
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -122,35 +221,154 @@
         {% block content %}{% endblock %}
     </main>
 
-    <footer class="bg-dark text-white text-center py-3 mt-auto">
-        <div class="container small text-muted">&copy; GO_CONNECTION - Plataforma B2B</div>
-    </footer>
+    <div id="notes-widget-container">
+        <button id="notes-toggle-btn" class="btn btn-warning rounded-circle d-flex align-items-center justify-content-center" onclick="toggleNotesPanel()">
+            <i class="fa-solid fa-pen-to-square"></i>
+        </button>
+        
+        <div id="notes-panel" class="d-none">
+            <div class="notes-header">
+                <span><i class="fa-solid fa-folder-open me-2"></i>Funil B2B</span>
+                <button type="button" class="btn-close" onclick="toggleNotesPanel()"></button>
+            </div>
+            <div class="notes-body">
+                <div class="notes-sidebar">
+                    <div class="p-2 border-bottom bg-white">
+                        <select id="kanban-filter" class="form-select form-select-sm fw-bold border-secondary-subtle shadow-sm" onchange="renderNotesList()">
+                            <option value="all">👁️ Ver Todos</option>
+                            <option value="lead">🔴 Fria (Lead)</option>
+                            <option value="contacto">🔵 Em Contacto</option>
+                            <option value="negociacao">🟡 Em Negociação</option>
+                            <option value="fechado">🟢 Negócio Fechado</option>
+                        </select>
+                    </div>
+                    <ul class="notes-list" id="notes-list"></ul>
+                    
+                    <div class="p-2 border-top">
+                        <button class="btn btn-sm btn-dark w-100 fw-bold shadow-sm" onclick="createNewNote()">+ Nova Pasta</button>
+                    </div>
+                </div>
+                
+                <div class="notes-main d-none" id="note-active-area">
+                    <input type="text" class="note-title" id="note-title" placeholder="Nome do Cliente..." onblur="saveCurrentNote()">
+                    <div class="notes-toolbar">
+                        <span class="small fw-bold ms-2 text-dark">Fase:</span>
+                        <div class="ms-auto d-flex align-items-center">
+                            <select id="note-status" class="form-select form-select-sm fw-bold border border-secondary-subtle bg-white shadow-sm" style="width: 155px; cursor:pointer;" onchange="saveCurrentNote()">
+                                <option value="lead">🔴 Fria (Lead)</option>
+                                <option value="contacto">🔵 Em Contacto</option>
+                                <option value="negociacao">🟡 Em Negociação</option>
+                                <option value="fechado">🟢 Negócio Fechado</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="p-4" style="overflow-y: auto; flex: 1;">
+                        <div class="row g-3 mb-3">
+                            <div class="col-12">
+                                <label class="small fw-bold text-muted mb-1"><i class="fa-solid fa-tag me-1"></i>Subtítulo (Opcional)</label>
+                                <input type="text" class="form-control border-secondary-subtle shadow-sm" id="note-subtitle" placeholder="Ex: Restaurante do Manel..." onblur="saveCurrentNote()">
+                            </div>
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-6">
+                                <label class="small fw-bold text-muted mb-1"><i class="fa-solid fa-id-card me-1"></i>NIPC</label>
+                                <input type="text" class="form-control border-secondary-subtle shadow-sm" id="note-nipc" placeholder="500..." onblur="saveCurrentNote()">
+                            </div>
+                            <div class="col-6">
+                                <label class="small fw-bold text-muted mb-1"><i class="fa-solid fa-phone me-1"></i>Telefone</label>
+                                <input type="text" class="form-control border-secondary-subtle shadow-sm" id="note-phone" placeholder="91..." onblur="saveCurrentNote()">
+                            </div>
+                        </div>
+                        
+                        <div class="row g-3 mb-4 p-3 border border-danger border-opacity-25 rounded shadow-sm bg-white">
+                            <div class="col-12"><label class="fw-bold text-danger mb-0"><i class="fa-solid fa-clock me-1"></i>Agendar Ligar de Volta:</label></div>
+                            <div class="col-7">
+                                <input type="date" class="form-control border-danger" id="note-f-date" onblur="saveCurrentNote()">
+                            </div>
+                            <div class="col-5">
+                                <input type="time" class="form-control border-danger" id="note-f-time" onblur="saveCurrentNote()">
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="small fw-bold text-muted mb-1"><i class="fa-solid fa-align-left me-1"></i>Notas da Chamada</label>
+                            <textarea class="form-control border-secondary-subtle shadow-sm" id="note-desc" rows="4" placeholder="Detalhes importantes..." onblur="saveCurrentNote()"></textarea>
+                        </div>
+
+                        <div class="p-3 bg-white border border-success border-opacity-25 rounded shadow-sm mb-3 mt-3">
+                            <h6 class="fw-bold text-success-emphasis mb-3"><i class="fa-solid fa-clock-rotate-left me-2"></i>Time Machine (Cenários)</h6>
+                            <div id="note-scenarios-list">
+                                <div class="text-muted fst-italic text-center small p-2 bg-light rounded border border-secondary-subtle">Nenhum cenário fixado.</div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="note-footer">
+                        <button class="btn btn-sm btn-outline-secondary fw-bold shadow-sm" onclick="deleteCurrentNote()"><i class="fa-solid fa-box-archive me-2"></i>Arquivar Lead</button>
+                    </div>
+                </div>
+                
+                <div id="empty-state">
+                    <i class="fa-solid fa-filter fs-1 mb-3 text-warning opacity-50"></i>
+                    <p class="text-center px-4 text-muted fw-bold mb-1">Painel Vazio</p>
+                    <p class="small text-center px-4 text-muted">Selecione um cliente ao lado ou crie uma nova pasta para iniciar a gestão.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button id="chat-floating-btn" class="btn btn-primary px-4 py-2" onclick="toggleChat()">
+        <i class="fa-solid fa-headset me-2"></i>{% if is_admin %}Painel CRM (Chat){% else %}Ajuda Supervisor{% endif %}
+        <span id="chat-global-badge" class="chat-badge d-none">0</span>
+    </button>
+
+    <div id="chat-panel" class="d-none fade-in">
+        <div class="chat-header">
+            <div class="d-flex align-items-center">
+                <i class="fa-solid fa-headset me-2"></i><span>{% if is_admin %}Suporte Operacional{% else %}Falar com Supervisor{% endif %}</span>
+            </div>
+            <button type="button" class="btn-close btn-close-white" onclick="toggleChat()"></button>
+        </div>
+        {% if is_admin %}
+        <div class="p-2 bg-light border-bottom">
+            <select id="admin-chat-target" class="form-select form-select-sm fw-bold border-primary" onchange="fetchChatMessages()">
+                <option value="">Selecione um Operador...</option>
+            </select>
+        </div>
+        {% endif %}
+        <div class="chat-messages" id="chat-messages-container">
+            <div class="text-center text-muted small mt-5">{% if is_admin %}Selecione um operador acima.{% else %}Envie uma mensagem para iniciar.{% endif %}</div>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="chat-input-text" class="form-control form-control-sm border-primary" placeholder="Escreva a mensagem..." onkeypress="if(event.key === 'Enter') sendChatMessage()">
+            <button class="btn btn-primary btn-sm" onclick="sendChatMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+        </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
+        // ==========================================
+        // INIT GERAL (TEMA, TOASTS E NOTIFICAÇÕES)
+        // ==========================================
         document.addEventListener('DOMContentLoaded', function() {
-            // Inicializar Toasts automaticamente
             var toastElList = [].slice.call(document.querySelectorAll('.toast'));
-            var toastList = toastElList.map(function(toastEl) {
-                return new bootstrap.Toast(toastEl);
-            });
+            var toastList = toastElList.map(function(toastEl) { return new bootstrap.Toast(toastEl); });
             toastList.forEach(toast => toast.show());
 
-            // Lógica do Modo Escuro
             const htmlElement = document.documentElement;
             const themeToggleBtn = document.getElementById('theme-toggle');
             const themeIcon = themeToggleBtn.querySelector('i');
-
-            // Verifica se o utilizador já tinha escolhido um tema anteriormente
             const savedTheme = localStorage.getItem('theme');
+            
             if (savedTheme === 'dark') {
                 htmlElement.setAttribute('data-bs-theme', 'dark');
                 themeIcon.classList.replace('fa-moon', 'fa-sun');
                 themeToggleBtn.classList.replace('btn-outline-light', 'btn-warning');
             }
-
-            // Ação ao clicar no botão
+            
             themeToggleBtn.addEventListener('click', function() {
                 const currentTheme = htmlElement.getAttribute('data-bs-theme');
                 if (currentTheme === 'light') {
@@ -165,7 +383,419 @@
                     themeToggleBtn.classList.replace('btn-warning', 'btn-outline-light');
                 }
             });
+
+            if ("Notification" in window && Notification.permission !== "granted" && Notification.permission !== "denied") {
+                Notification.requestPermission();
+            }
+            
+            setInterval(checkChatStatus, 3000);
         });
+
+        // ==========================================
+        // VARIÁVEIS GLOBAIS E SOM
+        // ==========================================
+        const urlParams = new URLSearchParams(window.location.search);
+        const userToken = urlParams.get('token') || 'admin_session';
+        const isAdmin = {{ 'true' if is_admin else 'false' }};
+        
+        let lastUnreadCount = 0;
+        let lastBroadcastId = null;
+        let isChatOpen = false;
+        
+        function playNotificationSound() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain); gain.connect(ctx.destination);
+                osc.type = 'sine'; osc.frequency.setValueAtTime(880, ctx.currentTime); 
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                osc.start(); gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.3); osc.stop(ctx.currentTime + 0.3);
+            } catch(e) {}
+        }
+
+        // ==========================================
+        // MEGAFONE E CHAT
+        // ==========================================
+        function abrirModalBroadcast() {
+            var m = new bootstrap.Modal(document.getElementById('modalBroadcast'));
+            m.show();
+        }
+
+        async function enviarBroadcast() {
+            const txt = document.getElementById('broadcast-text').value;
+            if(!txt) return;
+            try {
+                await fetch('/api/broadcast', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: txt })
+                });
+                document.getElementById('broadcast-text').value = '';
+                bootstrap.Modal.getInstance(document.getElementById('modalBroadcast')).hide();
+            } catch(e) {}
+        }
+
+        async function checkChatStatus() {
+            try {
+                const res = await fetch(`/api/chat/status?token=${userToken}`);
+                const data = await res.json();
+                
+                if(data.broadcast && data.broadcast.id) {
+                    if(lastBroadcastId !== null && data.broadcast.id !== lastBroadcastId) {
+                        playNotificationSound();
+                        document.getElementById('broadcast-msg-body').innerText = data.broadcast.text;
+                        document.getElementById('broadcast-msg-time').innerText = "Enviado às " + data.broadcast.timestamp;
+                        new bootstrap.Modal(document.getElementById('modalReceberBroadcast')).show();
+                    }
+                    lastBroadcastId = data.broadcast.id;
+                }
+
+                const badge = document.getElementById('chat-global-badge');
+                if(data.total_unread > 0) {
+                    badge.innerText = data.total_unread;
+                    badge.classList.remove('d-none');
+                } else {
+                    badge.classList.add('d-none');
+                }
+
+                if(data.total_unread > lastUnreadCount) {
+                    playNotificationSound();
+                    if ("Notification" in window && Notification.permission === "granted") {
+                        new Notification("Nova Mensagem (Suporte)", { body: "Recebeu uma mensagem no simulador." });
+                    }
+                }
+                lastUnreadCount = data.total_unread;
+
+                if(isChatOpen) {
+                    {% if is_admin %} updateAdminDropdown(data.operators); {% endif %}
+                    fetchChatMessages(); 
+                }
+            } catch(e) {}
+        }
+
+        function toggleChat() {
+            const panel = document.getElementById('chat-panel');
+            isChatOpen = !isChatOpen;
+            if(isChatOpen) { panel.classList.remove('d-none'); fetchChatMessages(); } else { panel.classList.add('d-none'); }
+        }
+
+        {% if is_admin %}
+        function updateAdminDropdown(operatorsDict) {
+            const select = document.getElementById('admin-chat-target');
+            const currentVal = select.value;
+            select.innerHTML = '<option value="">Selecione um Operador...</option>';
+            for (const [token, info] of Object.entries(operatorsDict)) {
+                const opt = document.createElement('option');
+                opt.value = token;
+                opt.innerText = info.unread > 0 ? `🔴 ${token} (${info.unread} nova)` : token;
+                if(token === currentVal) opt.selected = true;
+                select.appendChild(opt);
+            }
+        }
+        {% endif %}
+
+        async function fetchChatMessages() {
+            let target = userToken;
+            if(isAdmin) { target = document.getElementById('admin-chat-target').value; if(!target) return; }
+            try {
+                const res = await fetch(`/api/chat?target=${target}`);
+                const data = await res.json();
+                const container = document.getElementById('chat-messages-container');
+                if(data.messages) {
+                    container.innerHTML = '';
+                    data.messages.forEach(msg => {
+                        const isMe = (isAdmin && msg.sender === 'Admin') || (!isAdmin && msg.sender !== 'Admin');
+                        const div = document.createElement('div');
+                        div.className = `chat-msg ${isMe ? 'msg-me' : 'msg-them'} mb-2`;
+                        div.innerHTML = `<div class="msg-sender">${msg.sender}</div><div>${msg.text}</div><div class="msg-time">${msg.timestamp}</div>`;
+                        container.appendChild(div);
+                    });
+                    container.scrollTop = container.scrollHeight;
+                }
+            } catch(e) {}
+        }
+
+        async function sendChatMessage() {
+            const input = document.getElementById('chat-input-text');
+            const text = input.value.trim();
+            if(!text) return;
+            let target = userToken;
+            if(isAdmin) { target = document.getElementById('admin-chat-target').value; if(!target) { alert("Selecione um operador na lista!"); return; } }
+            input.value = '';
+            try {
+                await fetch(`/api/chat?target=${target}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text }) });
+                fetchChatMessages(); checkChatStatus();
+            } catch(e) {}
+        }
+
+        // ==========================================
+        // CRM / KANBAN / TIME MACHINE E SOFT DELETE
+        // ==========================================
+        let userNotes = [];
+        let currentNoteId = null;
+
+        function toggleNotesPanel() {
+            const panel = document.getElementById('notes-panel');
+            panel.classList.toggle('d-none');
+            if (!panel.classList.contains('d-none')) loadNotesFromServer();
+        }
+
+        async function loadNotesFromServer() {
+            try {
+                const res = await fetch(`/api/notes?token=${userToken}`);
+                const data = await res.json();
+                if (data.notes) { userNotes = data.notes; renderNotesList(); }
+            } catch (e) {}
+        }
+
+        async function saveCurrentNote() {
+            if (!currentNoteId) return;
+            const title = document.getElementById('note-title').value || 'Sem título';
+            const subtitle = document.getElementById('note-subtitle').value || '';
+            const nipc = document.getElementById('note-nipc').value || '';
+            const phone = document.getElementById('note-phone').value || '';
+            const f_date = document.getElementById('note-f-date').value || '';
+            const f_time = document.getElementById('note-f-time').value || '';
+            const desc = document.getElementById('note-desc').value || '';
+            const status = document.getElementById('note-status').value;
+            
+            const note = userNotes.find(n => n.id === currentNoteId);
+            if (note) { 
+                note.title = title; note.subtitle = subtitle; note.nipc = nipc;
+                note.phone = phone; note.desc = desc; note.status = status;
+                note.followup_date = f_date; note.followup_time = f_time;
+                renderNotesList(); 
+            }
+
+            try {
+                const payload = { id: currentNoteId, title: title, subtitle: subtitle, nipc: nipc, phone: phone, desc: desc, status: status, followup_date: f_date, followup_time: f_time };
+                const res = await fetch(`/api/notes?token=${userToken}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const data = await res.json();
+                if (data.id && currentNoteId === 'new') { currentNoteId = data.id; loadNotesFromServer(); }
+            } catch (e) {}
+        }
+
+        async function createNewNote() {
+            try {
+                const payload = { title: 'Nova Lead', subtitle: '', nipc: '', phone: '', desc: '', status: 'lead', followup_date: '', followup_time: '' };
+                const res = await fetch(`/api/notes?token=${userToken}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const data = await res.json();
+                if (data.success) { await loadNotesFromServer(); openNote(data.id); }
+            } catch (e) {}
+        }
+
+        async function deleteCurrentNote() {
+            if (!currentNoteId || !confirm('Deseja mesmo Arquivar esta Lead? Ela vai desaparecer do seu painel, mas o Supervisor pode sempre recuperá-la.')) return;
+            try {
+                const res = await fetch(`/api/notes/${currentNoteId}?token=${userToken}`, { method: 'DELETE' });
+                if (res.ok) {
+                    currentNoteId = null;
+                    document.getElementById('note-active-area').classList.add('d-none');
+                    document.getElementById('empty-state').classList.remove('d-none');
+                    await loadNotesFromServer();
+                }
+            } catch (e) {}
+        }
+
+        function renderNotesList() {
+            const list = document.getElementById('notes-list');
+            const filter = document.getElementById('kanban-filter').value;
+            list.innerHTML = '';
+            
+            let activeNotes = userNotes.filter(n => !n.archived);
+            let filteredNotes = filter !== 'all' ? activeNotes.filter(n => (n.status || 'lead') === filter) : activeNotes;
+            
+            const todayStr = new Date().toISOString().split('T')[0];
+            const hojeNotes = filteredNotes.filter(n => n.followup_date === todayStr);
+            const outrasNotes = filteredNotes.filter(n => n.followup_date !== todayStr);
+
+            if (hojeNotes.length > 0) {
+                const hdr = document.createElement('div');
+                hdr.className = 'sidebar-section-title text-danger';
+                hdr.innerHTML = '<i class="fa-solid fa-bell me-1"></i> Ligar Hoje';
+                list.appendChild(hdr);
+                
+                hojeNotes.forEach(n => {
+                    const li = document.createElement('li');
+                    li.className = 'note-list-item agenda-hoje' + (n.id === currentNoteId ? ' active' : '');
+                    
+                    const topRow = document.createElement('div');
+                    topRow.style.display = 'flex'; topRow.style.alignItems = 'center';
+                    
+                    const dot = document.createElement('span'); dot.className = `status-dot bg-${n.status || 'lead'}`;
+                    const txt = document.createElement('span'); txt.style.overflow = 'hidden'; txt.style.textOverflow = 'ellipsis'; txt.style.fontWeight = 'bold'; txt.innerText = n.title || 'Sem título';
+                    
+                    topRow.appendChild(dot); topRow.appendChild(txt);
+                    
+                    const botRow = document.createElement('div');
+                    botRow.className = 'text-danger mt-1';
+                    botRow.style.fontSize = '11px'; botRow.style.fontWeight = 'bold';
+                    botRow.innerHTML = `<i class="fa-regular fa-clock me-1"></i>${n.followup_time || 'Sem hora'} | ${n.phone || 'Sem telefone'}`;
+                    
+                    li.appendChild(topRow); li.appendChild(botRow);
+                    li.onclick = () => openNote(n.id);
+                    list.appendChild(li);
+                });
+            }
+
+            if (outrasNotes.length > 0) {
+                const hdr2 = document.createElement('div');
+                hdr2.className = 'sidebar-section-title mt-2';
+                hdr2.innerHTML = '<i class="fa-solid fa-list me-1"></i> Outras Leads';
+                list.appendChild(hdr2);
+                
+                outrasNotes.forEach(n => {
+                    const li = document.createElement('li');
+                    li.className = 'note-list-item' + (n.id === currentNoteId ? ' active' : '');
+                    
+                    const row = document.createElement('div');
+                    row.style.display = 'flex'; row.style.alignItems = 'center';
+                    
+                    const dot = document.createElement('span'); dot.className = `status-dot bg-${n.status || 'lead'}`;
+                    const txt = document.createElement('span'); txt.style.overflow = 'hidden'; txt.style.textOverflow = 'ellipsis'; txt.style.fontWeight = '600'; txt.innerText = n.title || 'Sem título';
+                    
+                    row.appendChild(dot); row.appendChild(txt);
+                    li.appendChild(row);
+                    li.onclick = () => openNote(n.id);
+                    list.appendChild(li);
+                });
+            }
+        }
+
+        function openNote(id) {
+            const note = userNotes.find(n => n.id === id);
+            if (!note) return;
+            currentNoteId = note.id;
+            document.getElementById('note-title').value = note.title || '';
+            document.getElementById('note-subtitle').value = note.subtitle || '';
+            document.getElementById('note-nipc').value = note.nipc || '';
+            document.getElementById('note-phone').value = note.phone || '';
+            document.getElementById('note-f-date').value = note.followup_date || '';
+            document.getElementById('note-f-time').value = note.followup_time || '';
+            document.getElementById('note-desc').value = note.desc || '';
+            document.getElementById('note-status').value = note.status || 'lead';
+
+            // 🚀 RENDERIZAR CENÁRIOS COM COMPATIBILIDADE PARA POUPANÇA ANUAL
+            const scList = document.getElementById('note-scenarios-list');
+            if(scList) {
+                if(note.scenarios && note.scenarios.length > 0) {
+                    scList.innerHTML = note.scenarios.map(s => `
+                        <div class="scenario-card p-3 mb-2" onclick='carregarCenarioTimeMachine(${JSON.stringify(s.data)})'>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-bold text-dark" style="font-size: 14px;">${s.name}</span>
+                                <span class="badge bg-success shadow-sm rounded-pill py-1 px-2">+${s.poup_anual || s.poup || 0}€/ano</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center text-muted mt-2" style="font-size: 11px;">
+                                <span><i class="fa-solid fa-calendar-day me-1"></i>${s.date}</span>
+                                <span class="text-success fw-bold fst-italic"><i class="fa-solid fa-rotate-left me-1"></i>Recarregar</span>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    scList.innerHTML = '<div class="text-muted fst-italic p-3 text-center small">Guarde resultados da Eletricidade ou Gás para aceder a eles aqui.</div>';
+                }
+            }
+
+            document.getElementById('empty-state').classList.add('d-none');
+            document.getElementById('note-active-area').classList.remove('d-none');
+            renderNotesList();
+        }
+
+        // ==========================================
+        // LÓGICA DA TIME MACHINE (MAGIA)
+        // ==========================================
+        let pendingScenarioData = null;
+
+        window.carregarCenarioTimeMachine = function(dataStr) {
+            if(!dataStr) return;
+            const confirmacao = confirm("Deseja recarregar este cenário? Os dados do simulador atual serão substituídos.");
+            if(!confirmacao) return;
+
+            try {
+                const dataObj = typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
+                for(const key in dataObj) {
+                    const field = document.getElementsByName(key)[0] || document.getElementById(key);
+                    if(field) {
+                        if (field.type === 'checkbox' || field.type === 'radio') {
+                            field.checked = true;
+                        } else {
+                            field.value = dataObj[key];
+                        }
+                    }
+                }
+                const formEle = document.getElementById('eleForm') || document.getElementById('gasForm');
+                if(formEle) formEle.submit();
+            } catch(e) {
+                alert("Erro ao recarregar a Time Machine.");
+            }
+        };
+
+        window.abrirModalGravarCenario = async function(prodName, poupAnual, formId) {
+            await loadNotesFromServer(); 
+            // Só pode gravar em Leads que NÃO estão arquivadas
+            const activeNotes = userNotes.filter(n => !n.archived);
+            
+            if(activeNotes.length === 0) {
+                alert("⚠️ Não tem nenhuma Lead ativa! Crie primeiro uma Lead no Bloco de Notas para poder guardar cálculos.");
+                return;
+            }
+
+            const select = document.getElementById('saveScenarioLeadSelect');
+            select.innerHTML = '';
+            activeNotes.forEach(n => {
+                select.innerHTML += `<option value="${n.id}">${n.title || 'Lead Sem Nome'} (${n.nipc || 'Sem NIF'})</option>`;
+            });
+
+            if(currentNoteId) select.value = currentNoteId;
+
+            const formElement = document.getElementById(formId);
+            const formData = new FormData(formElement);
+            const formObj = Object.fromEntries(formData.entries());
+            
+            // 🚀 CORREÇÃO DO NOME DA VARIÁVEL: AGORA CHAMA-SE poup_anual PARA COINCIDIR COM O ADMIN
+            pendingScenarioData = {
+                name: prodName,
+                poup_anual: poupAnual,
+                date: new Date().toLocaleDateString('pt-PT') + ' ' + new Date().toLocaleTimeString('pt-PT').slice(0,5),
+                data: JSON.stringify(formObj)
+            };
+
+            var myModal = new bootstrap.Modal(document.getElementById('modalSaveScenario'));
+            myModal.show();
+        };
+
+        window.confirmarSalvarCenario = async function() {
+            const select = document.getElementById('saveScenarioLeadSelect');
+            const targetNoteId = select.value;
+            if(!targetNoteId || !pendingScenarioData) return;
+
+            try {
+                const search = window.location.search.includes('token=') ? window.location.search : `?token=${userToken}`;
+                const payload = { id: targetNoteId, scenario: pendingScenarioData };
+                
+                const response = await fetch('/api/notes' + search, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                
+                if (response.ok) {
+                    var myModal = bootstrap.Modal.getInstance(document.getElementById('modalSaveScenario'));
+                    myModal.hide();
+                    
+                    alert("✅ Cenário guardado na Lead com sucesso!");
+                    
+                    if(targetNoteId === currentNoteId) {
+                        await loadNotesFromServer();
+                        openNote(currentNoteId);
+                    }
+                } else {
+                    alert("Erro ao guardar cenário.");
+                }
+            } catch(e) {
+                alert("Erro ao guardar cenário.");
+            }
+        };
     </script>
 </body>
 </html>

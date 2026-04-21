@@ -3,7 +3,6 @@
 <h2 class="mb-4 text-primary text-center">Simulador de Gás Natural B2B</h2>
 
 <form method="POST" id="gasForm" class="bg-body-tertiary p-4 border border-secondary-subtle rounded shadow-sm">
-    {% if agent_token %}<input type="hidden" name="token" value="{{ agent_token }}">{% endif %}
     <div class="row g-3 mb-4 border-bottom border-secondary-subtle pb-3 bg-body-secondary p-2 rounded align-items-center">
         <div class="col-md-3">
             <label class="fw-bold text-body">Fidelização</label>
@@ -21,11 +20,11 @@
         </div>
         <div class="col-md-3">
             <label class="fw-bold text-body">Escalão TAR</label>
-            <select name="escalao" class="form-select border-primary bg-body text-body" onchange="document.getElementById('gasForm').submit()">
-                <option value="1" {% if esc == '1' %}selected{% endif %}>Escalão 1</option>
-                <option value="2" {% if esc == '2' %}selected{% endif %}>Escalão 2</option>
-                <option value="3" {% if esc == '3' %}selected{% endif %}>Escalão 3</option>
-                <option value="4" {% if esc == '4' %}selected{% endif %}>Escalão 4</option>
+            <select name="escalao" id="escalao_gas" class="form-select border-primary bg-body text-body" onchange="document.getElementById('gasForm').submit()">
+                <option value="1" {% if esc == '1' %}selected{% endif %}>Escalão 1 (0-220 m³)</option>
+                <option value="2" {% if esc == '2' %}selected{% endif %}>Escalão 2 (221-500 m³)</option>
+                <option value="3" {% if esc == '3' %}selected{% endif %}>Escalão 3 (501-1000 m³)</option>
+                <option value="4" {% if esc == '4' %}selected{% endif %}>Escalão 4 (1001-10000 m³)</option>
             </select>
         </div>
         <div class="col-md-3">
@@ -41,13 +40,17 @@
         </div>
     </div>
 
+    <div id="avisoEscalao" class="alert alert-danger fw-bold shadow-sm mb-4 border-danger border-opacity-50" style="display: none; animation: pulse 2s infinite;">
+        <i class="fa-solid fa-triangle-exclamation me-2"></i><span id="avisoEscalaoTexto"></span>
+    </div>
+
     <div class="row g-4">
         <div class="col-md-6 border-end border-secondary-subtle">
             <h5 class="text-danger fw-bold border-bottom border-secondary-subtle pb-2 mb-3">FATURA CLIENTE</h5>
             
             <div class="row g-2 mb-3">
                 <div class="col-md-4"><label class="small fw-bold text-body">Consumo (kWh)</label></div>
-                <div class="col-md-8"><input type="number" step="0.01" name="consumo" class="form-control border-danger bg-body text-body" required value="{{ request.form.get('consumo', '') }}"></div>
+                <div class="col-md-8"><input type="number" step="0.01" name="consumo" id="consumo_gas" class="form-control border-danger bg-body text-body" required value="{{ request.form.get('consumo', '') }}" onkeyup="checkGasEscalao()"></div>
             </div>
             
             <div class="row g-2 mb-3">
@@ -143,13 +146,39 @@
                 borderRadius: 4
             }]
         },
-        options: {
-            plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true } }
-        }
+        options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
     });
-
     document.getElementById('resultados-ancora').scrollIntoView({ behavior: 'smooth', block: 'start' });
 </script>
 {% endif %}
+
+<script>
+    // FATOR DE CONVERSÃO kWh para m3: ~11.5
+    function checkGasEscalao() {
+        const consumoKwh = parseFloat(document.getElementById('consumo_gas').value) || 0;
+        const escalaoSelecionado = parseInt(document.getElementById('escalao_gas').value) || 1;
+        const aviso = document.getElementById('avisoEscalao');
+        const avisoTexto = document.getElementById('avisoEscalaoTexto');
+        
+        // Conversão aproximada
+        const m3 = consumoKwh / 11.5;
+        
+        // Lógica da tabela de m3
+        let escalaoCorreto = 1;
+        if (m3 > 220 && m3 <= 500) escalaoCorreto = 2;
+        else if (m3 > 500 && m3 <= 1000) escalaoCorreto = 3;
+        else if (m3 > 1000) escalaoCorreto = 4;
+        
+        if (escalaoSelecionado < escalaoCorreto) {
+            avisoTexto.innerHTML = `<strong>Atenção:</strong> Um consumo de ${consumoKwh} kWh equivale a aprox. <strong>${m3.toFixed(0)} m³</strong>. Segundo as regras de faturação, isto pertence ao <strong>Escalão ${escalaoCorreto}</strong> ou superior. Como escolheu um escalão abaixo, o seu contrato vai ser rejeitado.`;
+            aviso.style.display = 'block';
+        } else {
+            aviso.style.display = 'none';
+        }
+    }
+    
+    document.getElementById('consumo_gas')?.addEventListener('change', checkGasEscalao);
+    document.getElementById('escalao_gas')?.addEventListener('change', checkGasEscalao);
+    document.addEventListener("DOMContentLoaded", checkGasEscalao);
+</script>
 {% endblock %}
