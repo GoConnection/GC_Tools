@@ -116,6 +116,13 @@
                             <i class="fa-solid fa-moon"></i>
                         </button>
                     </li>
+                    {% if not is_admin and operator_id %}
+                    <li class="nav-item me-3">
+                        <span class="navbar-text text-white-50 small">
+                            Agente {{ operator_id }}{% if operator_name %} - {{ operator_name }}{% endif %}
+                        </span>
+                    </li>
+                    {% endif %}
                     
                     {% if is_admin %}
                     <li class="nav-item">
@@ -395,7 +402,8 @@
         // VARIÁVEIS GLOBAIS E SOM
         // ==========================================
         const urlParams = new URLSearchParams(window.location.search);
-        const userToken = urlParams.get('token') || 'admin_session';
+        const sessionOperatorId = {{ (operator_id or '') | tojson }};
+        const userToken = urlParams.get('token') || sessionOperatorId || 'admin_session';
         const isAdmin = {{ 'true' if is_admin else 'false' }};
         const APP_ROOT = "{{ request.script_root or '' }}";
         function apiUrl(path) {

@@ -180,6 +180,31 @@ def open_sql_connection() -> pyodbc.Connection:
     return _conn()
 
 
+def get_allowed_agent_name(agent_id: int) -> str | None:
+    """
+    Return agent display name from Endesa.GCTools_AllowedAgentIDs when allowed.
+
+    Expected table shape:
+      AgentID INT PRIMARY KEY
+      Name NVARCHAR(...)
+    """
+    try:
+        with _conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                f"SELECT TOP 1 Name FROM {_q('GCTools_AllowedAgentIDs')} WHERE AgentID = ?",
+                (int(agent_id),),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            return str(row[0]).strip() if row[0] is not None else ""
+    except pyodbc.Error as e:
+        raise DatabaseConfigError(
+            f"Database error while loading allowed agent IDs: {e}"
+        ) from e
+
+
 def _float(v: Any) -> float:
     if v is None:
         return 0.0

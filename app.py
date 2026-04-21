@@ -150,6 +150,8 @@ def logout():
     session.pop("admin_email", None)
     session.pop("msal_state", None)
     session.pop("authenticated", None)
+    session.pop("agent_id", None)
+    session.pop("agent_name", None)
     flash("Sessão terminada.", "info")
     return redirect(url_for("login"))
 
@@ -506,14 +508,24 @@ def load_notes():
 def save_notes(data):
     save_notes_sql(data)
 
+
+def _resolve_operator_token() -> str:
+    q_token = (request.args.get('token') or "").strip()
+    if q_token:
+        return q_token
+    return str(session.get("agent_id") or "").strip()
+
+
 @app.route('/api/notes', methods=['GET'])
 def get_notes():
-    token = request.args.get('token') or session.get("admin_logged_in")
-    return jsonify({"notes": load_notes().get(str(token), [])}) if token else jsonify({"error": "Acesso negado."}), 403
+    token = _resolve_operator_token()
+    if not token:
+        return jsonify({"error": "Acesso negado."}), 403
+    return jsonify({"notes": load_notes().get(str(token), [])})
 
 @app.route('/api/notes', methods=['POST'])
 def save_note():
-    token = request.args.get('token') or session.get("admin_logged_in")
+    token = _resolve_operator_token()
     if not token: return jsonify({"error": "Acesso negado."}), 403
     req = request.json or {}
     data = load_notes()
@@ -574,7 +586,9 @@ def save_note():
 
 @app.route('/api/notes/<note_id>', methods=['DELETE'])
 def delete_note(note_id):
-    token = request.args.get('token') or session.get("admin_logged_in")
+    token = _resolve_operator_token()
+    if not token:
+        return jsonify({"error": "Acesso negado."}), 403
     data = load_notes()
     
     for n in data.get(str(token), []):
@@ -798,7 +812,7 @@ def post_broadcast():
 @app.route('/api/chat/status', methods=['GET'])
 def get_chat_status():
     is_admin = session.get("admin_logged_in")
-    token = request.args.get('token')
+    token = _resolve_operator_token()
     chat_data = load_chat()
     
     current_broadcast = chat_data.get("broadcast", {})
@@ -815,15 +829,22 @@ def get_chat_status():
             operators[tid]["last_time"] = msg["timestamp"]
         return jsonify({"is_admin": True, "total_unread": total_unread, "operators": operators, "broadcast": current_broadcast})
     else:
+        if not token:
+            return jsonify({"error": "Acesso negado."}), 403
         unread = sum(1 for msg in chat_data["messages"] if msg["token_id"] == token and not msg["is_read_op"])
         return jsonify({"is_admin": False, "total_unread": unread, "broadcast": current_broadcast})
 
 @app.route('/api/chat', methods=['GET'])
 def get_private_chat():
     is_admin = session.get("admin_logged_in")
-    target = request.args.get('target') 
-    
-    if not target: return jsonify({"messages": []})
+    if is_admin:
+        target = (request.args.get('target') or "").strip()
+        if not target:
+            return jsonify({"messages": []})
+    else:
+        target = _resolve_operator_token()
+        if not target:
+            return jsonify({"error": "Acesso negado."}), 403
     
     chat_data = load_chat()
     filtered_msgs = []
@@ -840,9 +861,14 @@ def get_private_chat():
 @app.route('/api/chat', methods=['POST'])
 def post_private_chat():
     is_admin = session.get("admin_logged_in")
-    target = request.args.get('target')
-    
-    if not target: return jsonify({"error": "No target"}), 400
+    if is_admin:
+        target = (request.args.get('target') or "").strip()
+        if not target:
+            return jsonify({"error": "No target"}), 400
+    else:
+        target = _resolve_operator_token()
+        if not target:
+            return jsonify({"error": "Acesso negado."}), 403
     text = (request.json or {}).get('text', '').strip()
     if not text: return jsonify({"error": "Empty"}), 400
 

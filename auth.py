@@ -17,9 +17,11 @@ import hmac
 import os
 import re
 from threading import Lock
+from typing import Any
 
 from cachetools import TTLCache
 from flask import Flask, Response, g, redirect, request, session
+from db_config import DatabaseConfigError, get_allowed_agent_name
 
 _CALC_PATHS = frozenset({"/", "/eletricidade", "/gas"})
 _ADMIN_PATHS = frozenset({"/config_ele", "/config_gas", "/download_template"})
@@ -113,14 +115,19 @@ def _query_handshake_token() -> str:
     return (request.args.get("ht") or "").strip()
 
 
-def _consume_handshake(token: str) -> bool:
+def _consume_handshake(token: str) -> dict[str, Any] | None:
     with _PENDING_HANDSHAKES_LOCK:
-        return _PENDING_HANDSHAKES.pop(token, None) is not None
+        payload = _PENDING_HANDSHAKES.pop(token, None)
+    if isinstance(payload, dict):
+        agent_id = payload.get("agent_id")
+        if isinstance(agent_id, int):
+            return payload
+    return None
 
 
-def _store_handshake(token: str) -> None:
+def _store_handshake(token: str, agent_id: int, agent_name: str) -> None:
     with _PENDING_HANDSHAKES_LOCK:
-        _PENDING_HANDSHAKES[token] = True
+        _PENDING_HANDSHAKES[token] = {"agent_id": agent_id, "agent_name": agent_name}
 
 
 def _is_agent_allowed_path(path: str) -> bool:
@@ -136,13 +143,35 @@ def register_access_control(app: Flask) -> None:
     def register_handshake() -> Response:
         data = request.get_json(silent=True) or {}
         token = str(data.get("token", "")).strip()
+        raw_agent_id = data.get("agentId")
         if not token or not _GUID_RE.fullmatch(token):
             return Response(
                 "Bad request. JSON body must include a valid GUID token.",
                 status=400,
                 mimetype="text/plain",
             )
-        _store_handshake(token)
+        if isinstance(raw_agent_id, bool) or not isinstance(raw_agent_id, int):
+            return Response(
+                "Bad request. JSON body must include integer agentId.",
+                status=400,
+                mimetype="text/plain",
+            )
+        agent_id = int(raw_agent_id)
+        try:
+            agent_name = get_allowed_agent_name(agent_id)
+        except DatabaseConfigError:
+            return Response(
+                "Service unavailable while validating agentId.",
+                status=503,
+                mimetype="text/plain",
+            )
+        if agent_name is None:
+            return Response(
+                "Forbidden. agentId is not allowed.",
+                status=403,
+                mimetype="text/plain",
+            )
+        _store_handshake(token, agent_id, agent_name)
         return Response(status=200)
 
     @app.before_request
@@ -185,13 +214,16 @@ def register_access_control(app: Flask) -> None:
 
         ht = _query_handshake_token()
         if ht:
-            if not _consume_handshake(ht):
+            handshake_payload = _consume_handshake(ht)
+            if not handshake_payload:
                 return Response(
                     "Unauthorized. Handshake token is invalid or expired.",
                     status=401,
                     mimetype="text/plain",
                 )
             session["authenticated"] = True
+            session["agent_id"] = int(handshake_payload["agent_id"])
+            session["agent_name"] = str(handshake_payload.get("agent_name") or "")
             root = (request.script_root or "").rstrip("/") + "/"
             return redirect(root)
 
@@ -239,4 +271,6 @@ def register_access_control(app: Flask) -> None:
         return {
             "is_admin": is_admin,
             "agent_token": agent_tok,
+            "operator_id": str(session.get("agent_id") or ""),
+            "operator_name": str(session.get("agent_name") or ""),
         }
