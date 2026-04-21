@@ -31,6 +31,8 @@ _GUID_RE = re.compile(
 )
 _PENDING_HANDSHAKES = TTLCache(maxsize=500, ttl=60)
 _PENDING_HANDSHAKES_LOCK = Lock()
+_AGENT_API_PREFIXES = ("/api/notes", "/api/chat")
+_AGENT_API_EXACT_PATHS = frozenset({"/api/sniper/ele"})
 
 
 def _effective_route_path() -> str:
@@ -121,6 +123,14 @@ def _store_handshake(token: str) -> None:
         _PENDING_HANDSHAKES[token] = True
 
 
+def _is_agent_allowed_path(path: str) -> bool:
+    if path in _CALC_PATHS:
+        return True
+    if path in _AGENT_API_EXACT_PATHS:
+        return True
+    return path.startswith(_AGENT_API_PREFIXES)
+
+
 def register_access_control(app: Flask) -> None:
     @app.post(_HANDSHAKE_REGISTER_PATH)
     def register_handshake() -> Response:
@@ -187,9 +197,9 @@ def register_access_control(app: Flask) -> None:
 
         if session.get("authenticated"):
             g.gctools_role = "agent"
-            if path not in _CALC_PATHS:
+            if not _is_agent_allowed_path(path):
                 return Response(
-                    "Forbidden: agent session only allows access to calculators.",
+                    "Forbidden: agent session does not allow this route.",
                     status=403,
                     mimetype="text/plain",
                 )
@@ -211,9 +221,9 @@ def register_access_control(app: Flask) -> None:
             )
 
         g.gctools_role = "agent"
-        if path not in _CALC_PATHS:
+        if not _is_agent_allowed_path(path):
             return Response(
-                "Forbidden: agent token only allows access to calculators.",
+                "Forbidden: agent token does not allow this route.",
                 status=403,
                 mimetype="text/plain",
             )
