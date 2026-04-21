@@ -397,6 +397,11 @@
         const urlParams = new URLSearchParams(window.location.search);
         const userToken = urlParams.get('token') || 'admin_session';
         const isAdmin = {{ 'true' if is_admin else 'false' }};
+        const APP_ROOT = "{{ request.script_root or '' }}";
+        function apiUrl(path) {
+            if (!path.startsWith('/')) path = '/' + path;
+            return `${APP_ROOT}${path}`;
+        }
         
         let lastUnreadCount = 0;
         let lastBroadcastId = null;
@@ -426,7 +431,7 @@
             const txt = document.getElementById('broadcast-text').value;
             if(!txt) return;
             try {
-                await fetch('/api/broadcast', {
+                await fetch(apiUrl('/api/broadcast'), {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text: txt })
                 });
@@ -437,7 +442,7 @@
 
         async function checkChatStatus() {
             try {
-                const res = await fetch(`/api/chat/status?token=${userToken}`);
+                const res = await fetch(`${apiUrl('/api/chat/status')}?token=${encodeURIComponent(userToken)}`);
                 const data = await res.json();
                 
                 if(data.broadcast && data.broadcast.id) {
@@ -498,7 +503,7 @@
             let target = userToken;
             if(isAdmin) { target = document.getElementById('admin-chat-target').value; if(!target) return; }
             try {
-                const res = await fetch(`/api/chat?target=${target}`);
+                const res = await fetch(`${apiUrl('/api/chat')}?target=${encodeURIComponent(target)}`);
                 const data = await res.json();
                 const container = document.getElementById('chat-messages-container');
                 if(data.messages) {
@@ -523,7 +528,7 @@
             if(isAdmin) { target = document.getElementById('admin-chat-target').value; if(!target) { alert("Selecione um operador na lista!"); return; } }
             input.value = '';
             try {
-                await fetch(`/api/chat?target=${target}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text }) });
+                await fetch(`${apiUrl('/api/chat')}?target=${encodeURIComponent(target)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text }) });
                 fetchChatMessages(); checkChatStatus();
             } catch(e) {}
         }
@@ -542,7 +547,7 @@
 
         async function loadNotesFromServer() {
             try {
-                const res = await fetch(`/api/notes?token=${userToken}`);
+                const res = await fetch(`${apiUrl('/api/notes')}?token=${encodeURIComponent(userToken)}`);
                 const data = await res.json();
                 if (data.notes) { userNotes = data.notes; renderNotesList(); }
             } catch (e) {}
@@ -569,7 +574,7 @@
 
             try {
                 const payload = { id: currentNoteId, title: title, subtitle: subtitle, nipc: nipc, phone: phone, desc: desc, status: status, followup_date: f_date, followup_time: f_time };
-                const res = await fetch(`/api/notes?token=${userToken}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const res = await fetch(`${apiUrl('/api/notes')}?token=${encodeURIComponent(userToken)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 const data = await res.json();
                 if (data.id && currentNoteId === 'new') { currentNoteId = data.id; loadNotesFromServer(); }
             } catch (e) {}
@@ -578,7 +583,7 @@
         async function createNewNote() {
             try {
                 const payload = { title: 'Nova Lead', subtitle: '', nipc: '', phone: '', desc: '', status: 'lead', followup_date: '', followup_time: '' };
-                const res = await fetch(`/api/notes?token=${userToken}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const res = await fetch(`${apiUrl('/api/notes')}?token=${encodeURIComponent(userToken)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 const data = await res.json();
                 if (data.success) { await loadNotesFromServer(); openNote(data.id); }
             } catch (e) {}
@@ -587,7 +592,7 @@
         async function deleteCurrentNote() {
             if (!currentNoteId || !confirm('Deseja mesmo Arquivar esta Lead? Ela vai desaparecer do seu painel, mas o Supervisor pode sempre recuperá-la.')) return;
             try {
-                const res = await fetch(`/api/notes/${currentNoteId}?token=${userToken}`, { method: 'DELETE' });
+                const res = await fetch(`${apiUrl(`/api/notes/${encodeURIComponent(currentNoteId)}`)}?token=${encodeURIComponent(userToken)}`, { method: 'DELETE' });
                 if (res.ok) {
                     currentNoteId = null;
                     document.getElementById('note-active-area').classList.add('d-none');
@@ -773,7 +778,7 @@
                 const search = window.location.search.includes('token=') ? window.location.search : `?token=${userToken}`;
                 const payload = { id: targetNoteId, scenario: pendingScenarioData };
                 
-                const response = await fetch('/api/notes' + search, {
+                const response = await fetch(apiUrl('/api/notes') + search, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)

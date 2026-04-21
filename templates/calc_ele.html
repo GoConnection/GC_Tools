@@ -257,7 +257,7 @@
                     <h5 class="fw-bold mb-1 text-info-emphasis"><i class="fa-solid fa-bolt text-warning me-2"></i>Excelente! Poupança de {{ res.poup_anual }}€ na Eletricidade.</h5>
                     <p class="mb-0 text-body small"><strong>ALERTA CROSS-SELLING:</strong> Aproveite a energia positiva do cliente e pergunte: <em>"O seu negócio também utiliza equipamentos a Gás Natural?"</em></p>
                 </div>
-                <button type="button" class="btn btn-info text-white fw-bold px-4 py-2 ms-3 text-nowrap shadow-sm" onclick="window.location.href='/gas' + window.location.search;">
+                <button type="button" class="btn btn-info text-white fw-bold px-4 py-2 ms-3 text-nowrap shadow-sm" onclick="window.location.href='{{ url_for('calc_gas') }}' + window.location.search;">
                     <i class="fa-solid fa-fire me-2"></i>Simular Gás Agora
                 </button>
             </div>
@@ -429,7 +429,7 @@
 
         const formData = new FormData(document.getElementById('eleForm'));
         try {
-            const response = await fetch('/api/sniper/ele', {
+            const response = await fetch(apiUrl('/api/sniper/ele'), {
                 method: 'POST',
                 body: formData
             });

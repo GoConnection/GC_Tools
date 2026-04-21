@@ -328,6 +328,12 @@
 </div>
 
 <script>
+    const APP_ROOT = "{{ request.script_root or '' }}";
+    function apiUrl(path) {
+        if (!path.startsWith('/')) path = '/' + path;
+        return `${APP_ROOT}${path}`;
+    }
+
     function adminFilter() {
         const query = document.getElementById('adminSearch').value.toLowerCase();
         const status = document.getElementById('adminStatusFilter').value;
@@ -400,7 +406,7 @@
             new_log: newLog
         };
 
-        fetch('/api/admin/manage_note', {
+        fetch(apiUrl('/api/admin/manage_note'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -447,7 +453,7 @@
             scenario_index: index
         };
 
-        fetch('/api/admin/manage_note', {
+        fetch(apiUrl('/api/admin/manage_note'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -492,7 +498,7 @@
             if (!confirm("Tem a certeza que quer transferir esta lead?")) return;
         }
 
-        fetch('/api/admin/manage_note', {
+        fetch(apiUrl('/api/admin/manage_note'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
