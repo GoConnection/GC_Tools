@@ -175,6 +175,15 @@ def _conn() -> pyodbc.Connection:
     return pyodbc.connect(_normalize_pyodbc_connection_string(raw))
 
 
+def _conn_by_config_key(config_key: str) -> pyodbc.Connection:
+    raw = str(current_app.config.get(config_key) or "").strip()
+    if not raw:
+        raise DatabaseConfigError(
+            f"Missing required database configuration: {config_key}"
+        )
+    return pyodbc.connect(_normalize_pyodbc_connection_string(raw))
+
+
 def open_sql_connection() -> pyodbc.Connection:
     """ODBC connection using the same Key Vault string as tariff config (Flask app context)."""
     return _conn()
@@ -182,17 +191,29 @@ def open_sql_connection() -> pyodbc.Connection:
 
 def get_allowed_agent_name(agent_id: int) -> str | None:
     """
-    Return agent display name from Endesa.GCTools_AllowedAgentIDs when allowed.
+    Return agent display name from OCGoConnection.dbo.[User] when allowed.
 
-    Expected table shape:
-      AgentID INT PRIMARY KEY
-      Name NVARCHAR(...)
+    Constraints:
+      Active = 1
+      Deleted = 0
+      DisabledAcc = 0
+      Locked = 0
+      UserTypeID = 200
     """
     try:
-        with _conn() as conn:
+        with _conn_by_config_key("OCGO_SQLSERVER_CONNECTION_STRING") as conn:
             cur = conn.cursor()
             cur.execute(
-                f"SELECT TOP 1 Name FROM {_q('GCTools_AllowedAgentIDs')} WHERE AgentID = ?",
+                """
+                SELECT TOP 1 HumanName
+                FROM [dbo].[User]
+                WHERE UserID = ?
+                  AND Active = 1
+                  AND Deleted = 0
+                  AND DisabledAcc = 0
+                  AND Locked = 0
+                  AND UserTypeID = 200
+                """,
                 (int(agent_id),),
             )
             row = cur.fetchone()

@@ -75,6 +75,7 @@ except KeyVaultConfigurationError as e:
     raise SystemExit(1) from e
 
 if os.environ.get("GCTOOLS_BEARER_TOKEN"): app.config["GCTOOLS_BEARER_TOKEN"] = os.environ["GCTOOLS_BEARER_TOKEN"].strip()
+if os.environ.get("OCGO_SQLSERVER_CONNECTION_STRING"): app.config["OCGO_SQLSERVER_CONNECTION_STRING"] = os.environ["OCGO_SQLSERVER_CONNECTION_STRING"].strip()
 if os.environ.get("MSAL_CLIENT_ID"): app.config["MSAL_CLIENT_ID"] = os.environ["MSAL_CLIENT_ID"].strip()
 if os.environ.get("MSAL_CLIENT_SECRET"): app.config["MSAL_CLIENT_SECRET"] = os.environ["MSAL_CLIENT_SECRET"].strip()
 if os.environ.get("MSAL_TENANT_ID"): app.config["MSAL_TENANT_ID"] = os.environ["MSAL_TENANT_ID"].strip()

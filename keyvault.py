@@ -25,12 +25,14 @@ from azure.identity import DefaultAzureCredential
 from azure.keyvault.secrets import SecretClient
 
 SECRET_SQL_CONNECTION_STRING = "ConnectionStrings--GoConnectionClientes"
+SECRET_OCGO_SQL_CONNECTION_STRING = "ConnectionStrings--OCGoConnection"
 SECRET_BEARER_TOKEN = "GCTools--BearerToken"
 SECRET_MSAL_CLIENT_ID = "GCTools--MsalClientId"
 SECRET_MSAL_CLIENT_SECRET = "GCTools--MsalClientSecret"
 SECRET_MSAL_TENANT_ID = "GCTools--MsalTenantId"
 
 CONFIG_SQL_CONNECTION_STRING = "SQLSERVER_CONNECTION_STRING"
+CONFIG_OCGO_SQL_CONNECTION_STRING = "OCGO_SQLSERVER_CONNECTION_STRING"
 CONFIG_BEARER_TOKEN = "GCTOOLS_BEARER_TOKEN"
 CONFIG_MSAL_CLIENT_ID = "MSAL_CLIENT_ID"
 CONFIG_MSAL_CLIENT_SECRET = "MSAL_CLIENT_SECRET"
@@ -75,6 +77,7 @@ def load_key_vault_config() -> Dict[str, Any]:
 
     try:
         sql_secret = client.get_secret(SECRET_SQL_CONNECTION_STRING)
+        ocgo_sql_secret = client.get_secret(SECRET_OCGO_SQL_CONNECTION_STRING)
         bearer_secret = client.get_secret(SECRET_BEARER_TOKEN)
         msal_cid = client.get_secret(SECRET_MSAL_CLIENT_ID)
         msal_sec = client.get_secret(SECRET_MSAL_CLIENT_SECRET)
@@ -82,6 +85,7 @@ def load_key_vault_config() -> Dict[str, Any]:
     except ResourceNotFoundError as e:
         raise KeyVaultConfigurationError(
             f"Key Vault secret not found. Ensure {SECRET_SQL_CONNECTION_STRING!r}, "
+            f"{SECRET_OCGO_SQL_CONNECTION_STRING!r}, "
             f"{SECRET_BEARER_TOKEN!r}, {SECRET_MSAL_CLIENT_ID!r}, "
             f"{SECRET_MSAL_CLIENT_SECRET!r}, and {SECRET_MSAL_TENANT_ID!r} exist in vault "
             f"{vault_url}. Underlying error: {e}"
@@ -105,6 +109,9 @@ def load_key_vault_config() -> Dict[str, Any]:
     return {
         CONFIG_SQL_CONNECTION_STRING: _require_non_empty_secret(
             SECRET_SQL_CONNECTION_STRING, sql_secret.value
+        ),
+        CONFIG_OCGO_SQL_CONNECTION_STRING: _require_non_empty_secret(
+            SECRET_OCGO_SQL_CONNECTION_STRING, ocgo_sql_secret.value
         ),
         CONFIG_BEARER_TOKEN: _require_non_empty_secret(
             SECRET_BEARER_TOKEN, bearer_secret.value
