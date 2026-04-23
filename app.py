@@ -268,6 +268,8 @@ def index():
 def app_selector():
     if not session.get("admin_logged_in"):
         return redirect(url_for("login"))
+    # Selector screen is neutral context: clear active app.
+    session.pop("selected_app", None)
     perms = refresh_admin_permissions_from_db()
     can_endesa = bool(perms.get("endesacalc", False))
     can_edp = bool(perms.get("edpsimulator", False))

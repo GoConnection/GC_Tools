@@ -1,3 +1,17 @@
+"""
+SQL reference (already created by IT):
+
+CREATE TABLE [endesa].[edp_simulator_tarifas_gas] (
+    [id] INT IDENTITY(1,1) PRIMARY KEY,
+    [escalao] NVARCHAR(50) NOT NULL, -- Escalão 1, Escalão 2, Escalão 3, Escalão 4
+    [fidelizacao_anos] INT NOT NULL,
+    [preco_kwh] DECIMAL(10,6) NOT NULL,
+    [preco_fixo_dia] DECIMAL(10,6) NOT NULL,
+    [ativo] BIT NOT NULL DEFAULT 1,
+    [updated_at] DATETIME NOT NULL DEFAULT GETDATE()
+);
+"""
+
 from __future__ import annotations
 
 from typing import Any

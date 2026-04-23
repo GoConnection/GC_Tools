@@ -90,7 +90,7 @@
 
     <nav class="navbar navbar-expand-lg navbar-dark navbar-custom mb-4 py-3 sticky-top">
         <div class="container">
-            <a class="navbar-brand" href="{% if agent_token %}{{ url_for(home_endpoint) }}?token={{ agent_token|urlencode }}{% else %}{{ url_for(home_endpoint) }}{% endif %}"><i class="fa-solid fa-bolt text-warning me-2"></i>GO CONNECTION</a>
+            <a class="navbar-brand" href="{% if is_admin %}{{ url_for('app_selector') }}{% elif agent_token %}{{ url_for(home_endpoint) }}?token={{ agent_token|urlencode }}{% else %}{{ url_for(home_endpoint) }}{% endif %}"><i class="fa-solid fa-bolt text-warning me-2"></i>GO CONNECTION</a>
             <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -98,18 +98,10 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     {% if is_selector_page %}
-                    <li class="nav-item">
-                        <a class="nav-link active fw-bold text-white" href="{{ url_for('app_selector') }}"><i class="fa-solid fa-table-cells-large me-1"></i> Selecionar Aplicação</a>
-                    </li>
                     {% else %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.path in ['/', '/app-selector', '/endesa-calculator', '/edp-simulator'] %}active fw-bold text-white{% endif %}" href="{% if agent_token %}{{ url_for(home_endpoint) }}?token={{ agent_token|urlencode }}{% else %}{{ url_for(home_endpoint) }}{% endif %}"><i class="fa-solid fa-house me-1"></i> Início</a>
                     </li>
-                    {% if is_admin and active_app %}
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.path == '/app-selector' %}active fw-bold text-white{% endif %}" href="{{ url_for('app_selector') }}"><i class="fa-solid fa-table-cells-large me-1"></i> Selecionar Aplicação</a>
-                    </li>
-                    {% endif %}
                     {% if active_app == 'endesacalc' or (is_admin and admin_can_endesa and not active_app) %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == '/eletricidade' %}active fw-bold text-white{% endif %}" href="{% if agent_token %}{{ url_for('calc_ele') }}?token={{ agent_token|urlencode }}{% else %}{{ url_for('calc_ele') }}{% endif %}"><i class="fa-solid fa-bolt me-1"></i> Eletricidade</a>
@@ -158,23 +150,23 @@
                     </li>
                     {% endif %}
 
-                    {% if is_admin %}
+                    {% if is_admin and not is_selector_page %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {% if 'config' in request.path or 'admin' in request.path %}active fw-bold text-white{% endif %}" href="#" role="button" data-bs-toggle="dropdown">
                             <i class="fa-solid fa-gear me-1"></i> Configurações
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2">
-                            <li><a class="dropdown-item py-2 fw-bold text-primary" href="{{ url_for('app_selector') }}"><i class="fa-solid fa-table-cells-large me-2"></i> Selecionar App</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            {% if admin_can_endesa and (active_app != 'edpsimulator') %}
+                            {% if active_app == 'endesacalc' %}
                             <li><a class="dropdown-item py-2 fw-bold" href="{{ url_for('config_ele') }}"><i class="fa-solid fa-bolt text-warning me-2"></i> Tarifários Eletricidade</a></li>
                             <li><a class="dropdown-item py-2 fw-bold" href="{{ url_for('config_gas') }}"><i class="fa-solid fa-fire text-danger me-2"></i> Tarifários Gás</a></li>
                             {% endif %}
-                            {% if admin_can_edp and (active_app != 'endesacalc') %}
+                            {% if active_app == 'edpsimulator' %}
                             <li><a class="dropdown-item py-2 fw-bold" href="{{ url_for('admin_edp_simulator') }}"><i class="fa-solid fa-scale-balanced text-primary me-2"></i> Simulador EDP</a></li>
                             {% endif %}
+                            {% if active_app in ['endesacalc', 'edpsimulator'] %}
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item py-2 fw-bold text-primary" href="{{ url_for('admin_notas', scope=page_scope) }}"><i class="fa-solid fa-users me-2"></i> Admin CRM (Notas)</a></li>
+                            <li><a class="dropdown-item py-2 fw-bold text-primary" href="{{ url_for('admin_notas', scope='endesa' if active_app == 'endesacalc' else 'edp') }}"><i class="fa-solid fa-users me-2"></i> Admin CRM (Notas)</a></li>
+                            {% endif %}
                         </ul>
                     </li>
                     {% endif %}
