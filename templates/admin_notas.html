@@ -22,7 +22,7 @@
             <option value="fechado">Fechados</option>
             <option value="arquivado">Arquivados</option>
         </select>
-        <a href="{{ url_for('export_leads') }}" class="btn btn-success btn-sm fw-bold shadow-sm">
+        <a href="{{ url_for('export_leads', scope=request.args.get('scope', 'endesa')) }}" class="btn btn-success btn-sm fw-bold shadow-sm">
             <i class="fa-solid fa-file-excel me-1"></i>Excel
         </a>
     </div>
@@ -329,9 +329,14 @@
 
 <script>
     const APP_ROOT = "{{ request.script_root or '' }}";
+    const clientScope = {{ request.args.get('scope', 'endesa') | tojson }};
     function apiUrl(path) {
         if (!path.startsWith('/')) path = '/' + path;
         return `${APP_ROOT}${path}`;
+    }
+    function scopedUrl(url) {
+        const sep = url.includes('?') ? '&' : '?';
+        return `${url}${sep}scope=${encodeURIComponent(clientScope)}`;
     }
 
     function adminFilter() {
@@ -406,7 +411,7 @@
             new_log: newLog
         };
 
-        fetch(apiUrl('/api/admin/manage_note'), {
+        fetch(scopedUrl(apiUrl('/api/admin/manage_note')), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -453,7 +458,7 @@
             scenario_index: index
         };
 
-        fetch(apiUrl('/api/admin/manage_note'), {
+        fetch(scopedUrl(apiUrl('/api/admin/manage_note')), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -498,7 +503,7 @@
             if (!confirm("Tem a certeza que quer transferir esta lead?")) return;
         }
 
-        fetch(apiUrl('/api/admin/manage_note'), {
+        fetch(scopedUrl(apiUrl('/api/admin/manage_note')), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)

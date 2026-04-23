@@ -21,6 +21,7 @@ from flask import (
 )
 
 from auth import register_access_control
+import db_edp_simulator
 from db_config import (
     DatabaseConfigError,
     clear_electricity_products_only,
@@ -33,13 +34,14 @@ from db_config import (
     load_chat_sql,
     save_chat_sql,
 )
+from edp_simulator_calc import calcular_simulacao
 from keyvault import KeyVaultConfigurationError, apply_key_vault_secrets_to_app
 from msal_auth import (
     acquire_token_by_auth_code,
     email_from_id_token_claims,
+    get_admin_app_permissions,
     get_authorization_url,
     get_msal_redirect_uri,
-    is_email_in_gctools_admins,
 )
 
 app = Flask(__name__)
@@ -75,6 +77,8 @@ except KeyVaultConfigurationError as e:
     raise SystemExit(1) from e
 
 if os.environ.get("GCTOOLS_BEARER_TOKEN"): app.config["GCTOOLS_BEARER_TOKEN"] = os.environ["GCTOOLS_BEARER_TOKEN"].strip()
+if os.environ.get("GCTOOLS_CLIENT_SCOPE"): app.config["GCTOOLS_CLIENT_SCOPE"] = os.environ["GCTOOLS_CLIENT_SCOPE"].strip().lower()
+elif os.environ.get("GCTOOLS_CLIENT"): app.config["GCTOOLS_CLIENT_SCOPE"] = os.environ["GCTOOLS_CLIENT"].strip().lower()
 if os.environ.get("OCGO_SQLSERVER_CONNECTION_STRING"): app.config["OCGO_SQLSERVER_CONNECTION_STRING"] = os.environ["OCGO_SQLSERVER_CONNECTION_STRING"].strip()
 if os.environ.get("MSAL_CLIENT_ID"): app.config["MSAL_CLIENT_ID"] = os.environ["MSAL_CLIENT_ID"].strip()
 if os.environ.get("MSAL_CLIENT_SECRET"): app.config["MSAL_CLIENT_SECRET"] = os.environ["MSAL_CLIENT_SECRET"].strip()
@@ -93,6 +97,83 @@ def safe_int(val, default=0):
         if val is None or val == '': return default
         return int(val)
     except: return default
+
+def safe_bool(val, default=False):
+    if isinstance(val, bool):
+        return val
+    if val is None:
+        return default
+    normalized = str(val).strip().lower()
+    if normalized in ("1", "true", "sim", "yes", "on"):
+        return True
+    if normalized in ("0", "false", "nao", "não", "no", "off"):
+        return False
+    return default
+
+def get_client_scope() -> str:
+    raw_scope = (request.args.get("scope") or request.form.get("scope") or "").strip().lower()
+    if not raw_scope and request.is_json:
+        body = request.get_json(silent=True) or {}
+        raw_scope = str(body.get("scope") or "").strip().lower()
+
+    if raw_scope == "edp":
+        return "edp"
+    if raw_scope == "endesa":
+        return "endesa"
+
+    if session.get("admin_logged_in"):
+        selected = str(session.get("selected_app") or "").strip().lower()
+        if selected == "edpsimulator":
+            return "edp"
+        if selected == "endesacalc":
+            return "endesa"
+
+    if session.get("authenticated"):
+        agent_app = str(session.get("agent_app") or "").strip().lower()
+        if agent_app == "edpsimulator":
+            return "edp"
+        if agent_app == "endesacalc":
+            return "endesa"
+
+    p = request.path or ""
+    if p.startswith("/edp-simulator") or p.startswith("/admin/edp-simulator"):
+        return "edp"
+    return "endesa"
+
+def refresh_admin_permissions_from_db() -> dict:
+    email = str(session.get("admin_email") or "").strip().lower()
+    perms = get_admin_app_permissions(email) or {"endesacalc": False, "edpsimulator": False}
+    session["admin_app_endesa"] = bool(perms.get("endesacalc", False))
+    session["admin_app_edp"] = bool(perms.get("edpsimulator", False))
+    return perms
+
+def scoped_operator_token(token: str, scope: str) -> str:
+    t = str(token or "").strip()
+    if not t:
+        return ""
+    if scope == "edp":
+        return t if t.startswith("edp::") else f"edp::{t}"
+    return t[5:] if t.startswith("edp::") else t
+
+def display_operator_token(token: str, scope: str) -> str:
+    t = str(token or "").strip()
+    if scope == "edp" and t.startswith("edp::"):
+        return t[5:]
+    return t
+
+def filter_notes_by_scope(all_notes: dict, scope: str) -> dict:
+    scoped_notes = {}
+    for token, notes in (all_notes or {}).items():
+        tok = str(token or "")
+        if scope == "edp":
+            if not tok.startswith("edp::"):
+                continue
+            scoped_notes[display_operator_token(tok, scope)] = notes
+        else:
+            if tok.startswith("edp::"):
+                continue
+            scoped_notes[display_operator_token(tok, scope)] = notes
+    return scoped_notes
 
 def get_config():
     cfg = fetch_full_config()
@@ -122,7 +203,7 @@ def _apply_electricity_tar_from_form(cfg):
 
 @app.route("/login")
 def login():
-    if session.get("admin_logged_in"): return redirect(url_for("index"))
+    if session.get("admin_logged_in"): return redirect(url_for("app_selector"))
     state = secrets.token_urlsafe(32)
     session["msal_state"] = state
     auth_url = get_authorization_url(app, get_msal_redirect_uri(), state)
@@ -139,11 +220,17 @@ def auth_callback():
     result = acquire_token_by_auth_code(app, code, get_msal_redirect_uri())
     email = email_from_id_token_claims(result)
     if not email: return Response("Could not read email.", status=403, mimetype="text/plain")
-    if not is_email_in_gctools_admins(email): return Response("Not admin.", status=403, mimetype="text/plain")
+    perms = get_admin_app_permissions(email)
+    if not perms: return Response("Not admin.", status=403, mimetype="text/plain")
+    if not perms.get("endesacalc") and not perms.get("edpsimulator"):
+        return Response("No app permissions assigned.", status=403, mimetype="text/plain")
     session["admin_logged_in"] = True
     session["admin_email"] = email
+    session["admin_app_endesa"] = bool(perms.get("endesacalc", False))
+    session["admin_app_edp"] = bool(perms.get("edpsimulator", False))
+    session.pop("selected_app", None)
     flash("Sessão iniciada.", "success")
-    return redirect(url_for("index"))
+    return redirect(url_for("app_selector"))
 
 @app.route("/logout")
 def logout():
@@ -153,14 +240,63 @@ def logout():
     session.pop("authenticated", None)
     session.pop("agent_id", None)
     session.pop("agent_name", None)
+    session.pop("agent_app", None)
+    session.pop("admin_app_endesa", None)
+    session.pop("admin_app_edp", None)
+    session.pop("selected_app", None)
     flash("Sessão terminada.", "info")
     return redirect(url_for("login"))
 
 @app.route('/')
-def index(): return render_template('index.html')
+def index():
+    if session.get("admin_logged_in"):
+        return redirect(url_for("app_selector"))
+    if session.get("authenticated"):
+        agent_app = str(session.get("agent_app") or "endesacalc").strip().lower()
+        if agent_app == "edpsimulator":
+            return redirect(url_for("edp_simulator"))
+        return redirect(url_for("endesa_calculator"))
+    token = (request.args.get("token") or "").strip()
+    app_key = (request.args.get("app") or "").strip().lower()
+    if token:
+        if app_key == "edpsimulator":
+            return redirect(url_for("edp_simulator", token=token, app="edpsimulator"))
+        return redirect(url_for("endesa_calculator", token=token, app="endesacalc"))
+    return redirect(url_for("login"))
+
+@app.route('/app-selector')
+def app_selector():
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("login"))
+    perms = refresh_admin_permissions_from_db()
+    can_endesa = bool(perms.get("endesacalc", False))
+    can_edp = bool(perms.get("edpsimulator", False))
+    return render_template("app_selector.html", can_endesa=can_endesa, can_edp=can_edp)
+
+@app.route('/select-app', methods=['POST'])
+def select_app():
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("login"))
+    perms = refresh_admin_permissions_from_db()
+    app_key = (request.form.get("app") or "").strip().lower()
+    if app_key == "endesacalc" and perms.get("endesacalc"):
+        session["selected_app"] = "endesacalc"
+        return redirect(url_for("endesa_calculator"))
+    if app_key == "edpsimulator" and perms.get("edpsimulator"):
+        session["selected_app"] = "edpsimulator"
+        return redirect(url_for("edp_simulator"))
+    return Response("Forbidden app selection.", status=403, mimetype="text/plain")
+
+@app.route('/endesa-calculator')
+def endesa_calculator():
+    if session.get("admin_logged_in"):
+        session["selected_app"] = "endesacalc"
+    return render_template('index.html')
 
 @app.route('/gas', methods=['GET', 'POST'])
 def calc_gas():
+    if session.get("admin_logged_in"):
+        session["selected_app"] = "endesacalc"
     cfg = get_config()["GN_CONFIG"]
     res = None
     t_fid = request.form.get('tipo_fid', 'fixo_12m')
@@ -197,6 +333,8 @@ def calc_gas():
 
 @app.route('/eletricidade', methods=['GET', 'POST'])
 def calc_ele():
+    if session.get("admin_logged_in"):
+        session["selected_app"] = "endesacalc"
     cfg = get_config()["EE_CONFIG"]
     res = None
     seg = request.form.get('segmento', 'BTN')
@@ -260,6 +398,124 @@ def calc_ele():
             flash("Não existem produtos importados neste segmento!", "danger")
             
     return render_template('calc_ele.html', config=cfg, res=res, segmento=seg, tipo_ee=t_ee)
+
+@app.route('/edp-simulator', methods=['GET'])
+def edp_simulator():
+    if session.get("admin_logged_in"):
+        session["selected_app"] = "edpsimulator"
+    tarifas_ele = db_edp_simulator.get_tarifas_eletricidade()
+    ofertas = sorted({str(t.get("oferta", "")).strip() for t in tarifas_ele if t.get("oferta")})
+    tarifas = sorted({str(t.get("tarifa", "")).strip() for t in tarifas_ele if t.get("tarifa")})
+    return render_template('edp_simulator.html', ofertas=ofertas, tarifas=tarifas)
+
+@app.route('/edp-simulator/calcular', methods=['POST'])
+def edp_simulator_calcular():
+    try:
+        tarifa = request.form.get("tarifa", "Simples")
+        consumo = {}
+        if tarifa == "Simples":
+            consumo["Simples"] = safe_float(request.form.get("consumo_simples"))
+        elif tarifa == "Bi-horaria":
+            consumo["Fora de Vazio"] = safe_float(request.form.get("consumo_fora_vazio"))
+            consumo["Vazio"] = safe_float(request.form.get("consumo_vazio_bih"))
+        elif tarifa == "Tri-horaria":
+            consumo["Ponta"] = safe_float(request.form.get("consumo_ponta"))
+            consumo["Cheias"] = safe_float(request.form.get("consumo_cheias"))
+            consumo["Vazio"] = safe_float(request.form.get("consumo_vazio_tri"))
+
+        tem_gas = safe_bool(request.form.get("tem_gas"), False)
+        inputs = {
+            "atributos": request.form.get("atributos", "Nenhum atributo"),
+            "tem_tarifa_social": safe_bool(request.form.get("tem_tarifa_social"), False),
+            "potencia_kva": safe_float(request.form.get("potencia_kva")),
+            "tarifa": tarifa,
+            "consumo": consumo,
+            "num_dias": safe_float(request.form.get("num_dias", 30)),
+            "tem_gas": tem_gas,
+            "gas_escalao": request.form.get("gas_escalao", ""),
+            "gas_num_dias": safe_float(request.form.get("gas_num_dias", 30)),
+            "gas_consumo_kwh": safe_float(request.form.get("gas_consumo_kwh")),
+            "gas_fidelizacao_anos": safe_int(request.form.get("gas_fidelizacao_anos", 1)),
+            "oferta": request.form.get("oferta", ""),
+            "fatura_concorrencia": safe_float(request.form.get("fatura_concorrencia")),
+        }
+
+        tarifas_ele = db_edp_simulator.get_tarifas_eletricidade()
+        tarifas_gas = db_edp_simulator.get_tarifas_gas()
+        result = calcular_simulacao(inputs, tarifas_ele, tarifas_gas)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+
+@app.route('/admin/edp-simulator', methods=['GET'])
+def admin_edp_simulator():
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("login"))
+    session["selected_app"] = "edpsimulator"
+    tarifas_ele = db_edp_simulator.get_tarifas_eletricidade()
+    tarifas_gas = db_edp_simulator.get_tarifas_gas()
+    return render_template('admin_edp_simulator.html', tarifas_ele=tarifas_ele, tarifas_gas=tarifas_gas)
+
+@app.route('/admin/edp-simulator/eletricidade', methods=['POST'])
+def admin_edp_simulator_eletricidade_upsert():
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("login"))
+    try:
+        data = {
+            "oferta": (request.form.get("oferta") or "").strip(),
+            "tarifa": (request.form.get("tarifa") or "").strip(),
+            "periodo": (request.form.get("periodo") or "").strip(),
+            "preco_kwh": safe_float(request.form.get("preco_kwh")),
+            "preco_potencia_dia": safe_float(request.form.get("preco_potencia_dia")),
+            "tem_debito_direto": 1 if safe_bool(request.form.get("tem_debito_direto")) else 0,
+            "tem_fatura_eletronica": 1 if safe_bool(request.form.get("tem_fatura_eletronica")) else 0,
+            "ativo": 1 if safe_bool(request.form.get("ativo"), True) else 0,
+        }
+        db_edp_simulator.upsert_tarifa_eletricidade(data)
+        flash("Tarifa de eletricidade guardada com sucesso.", "success")
+    except Exception as e:
+        flash(f"Erro ao guardar tarifa de eletricidade: {e}", "danger")
+    return redirect(url_for("admin_edp_simulator"))
+
+@app.route('/admin/edp-simulator/eletricidade/<id>/delete', methods=['POST'])
+def admin_edp_simulator_eletricidade_delete(id):
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("login"))
+    try:
+        db_edp_simulator.delete_tarifa_eletricidade(safe_int(id))
+        flash("Tarifa de eletricidade removida com sucesso.", "success")
+    except Exception as e:
+        flash(f"Erro ao remover tarifa de eletricidade: {e}", "danger")
+    return redirect(url_for("admin_edp_simulator"))
+
+@app.route('/admin/edp-simulator/gas', methods=['POST'])
+def admin_edp_simulator_gas_upsert():
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("login"))
+    try:
+        data = {
+            "escalao": (request.form.get("escalao") or "").strip(),
+            "fidelizacao_anos": safe_int(request.form.get("fidelizacao_anos", 1)),
+            "preco_kwh": safe_float(request.form.get("preco_kwh")),
+            "preco_fixo_dia": safe_float(request.form.get("preco_fixo_dia")),
+            "ativo": 1 if safe_bool(request.form.get("ativo"), True) else 0,
+        }
+        db_edp_simulator.upsert_tarifa_gas(data)
+        flash("Tarifa de gas guardada com sucesso.", "success")
+    except Exception as e:
+        flash(f"Erro ao guardar tarifa de gas: {e}", "danger")
+    return redirect(url_for("admin_edp_simulator"))
+
+@app.route('/admin/edp-simulator/gas/<id>/delete', methods=['POST'])
+def admin_edp_simulator_gas_delete(id):
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("login"))
+    try:
+        db_edp_simulator.delete_tarifa_gas(safe_int(id))
+        flash("Tarifa de gas removida com sucesso.", "success")
+    except Exception as e:
+        flash(f"Erro ao remover tarifa de gas: {e}", "danger")
+    return redirect(url_for("admin_edp_simulator"))
 
 @app.route('/api/sniper/ele', methods=['POST'])
 def sniper_ele():
@@ -519,14 +775,16 @@ def _resolve_operator_token() -> str:
 
 @app.route('/api/notes', methods=['GET'])
 def get_notes():
-    token = _resolve_operator_token()
+    scope = get_client_scope()
+    token = scoped_operator_token(_resolve_operator_token(), scope)
     if not token:
         return jsonify({"error": "Acesso negado."}), 403
     return jsonify({"notes": load_notes().get(str(token), [])})
 
 @app.route('/api/notes', methods=['POST'])
 def save_note():
-    token = _resolve_operator_token()
+    scope = get_client_scope()
+    token = scoped_operator_token(_resolve_operator_token(), scope)
     if not token: return jsonify({"error": "Acesso negado."}), 403
     req = request.json or {}
     data = load_notes()
@@ -587,7 +845,8 @@ def save_note():
 
 @app.route('/api/notes/<note_id>', methods=['DELETE'])
 def delete_note(note_id):
-    token = _resolve_operator_token()
+    scope = get_client_scope()
+    token = scoped_operator_token(_resolve_operator_token(), scope)
     if not token:
         return jsonify({"error": "Acesso negado."}), 403
     data = load_notes()
@@ -607,7 +866,8 @@ def admin_manage_note():
         return jsonify({"error": "Acesso negado."}), 403
     
     req = request.json
-    source_token = req.get('source_token')
+    scope = get_client_scope()
+    source_token = scoped_operator_token(req.get('source_token'), scope)
     note_id = req.get('note_id')
     action = req.get('action') 
     
@@ -658,7 +918,7 @@ def admin_manage_note():
         note_to_action['last_updated'] = now_str
         
     elif action == 'move':
-        target_token = req.get('target_token')
+        target_token = scoped_operator_token(req.get('target_token'), scope)
         if not target_token: return jsonify({"error": "Token de destino em falta."}), 400
         note_to_move = data[source_token].pop(note_index)
         note_to_move['last_updated'] = datetime.datetime.now().strftime("%Y-%m-%d")
@@ -680,7 +940,8 @@ def admin_manage_note():
 def admin_notas():
     if not session.get("admin_logged_in"): return redirect(url_for("login"))
     today = datetime.datetime.now() 
-    all_notes = load_notes()
+    scope = get_client_scope()
+    all_notes = filter_notes_by_scope(load_notes(), scope)
     current_time_str = today.strftime("%H:%M")
     
     lead_velocity = {}
@@ -740,6 +1001,7 @@ def admin_notas():
 @app.route('/admin/export_leads')
 def export_leads():
     if not session.get("admin_logged_in"): return redirect(url_for("login"))
+    scope = get_client_scope()
     
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';') 
@@ -749,7 +1011,7 @@ def export_leads():
         'Produto Simulado', 'Poupanca Anual', 'Data Criacao', 'Ultima Atualizacao'
     ])
     
-    for token, notes in load_notes().items():
+    for token, notes in filter_notes_by_scope(load_notes(), scope).items():
         for n in notes: 
             arq_status = 'Sim' if n.get('archived') else 'Nao'
             created = n.get('created_at', 'N/A')
@@ -790,10 +1052,10 @@ def export_leads():
 # ==========================================
 
 def load_chat():
-    return load_chat_sql()
+    return load_chat_sql(get_client_scope())
 
 def save_chat(data):
-    save_chat_sql(data)
+    save_chat_sql(data, get_client_scope())
 
 @app.route('/api/broadcast', methods=['POST'])
 def post_broadcast():
@@ -813,7 +1075,8 @@ def post_broadcast():
 @app.route('/api/chat/status', methods=['GET'])
 def get_chat_status():
     is_admin = session.get("admin_logged_in")
-    token = _resolve_operator_token()
+    scope = get_client_scope()
+    token = scoped_operator_token(_resolve_operator_token(), scope)
     chat_data = load_chat()
     
     current_broadcast = chat_data.get("broadcast", {})
@@ -828,7 +1091,8 @@ def get_chat_status():
                 operators[tid]["unread"] += 1
                 total_unread += 1
             operators[tid]["last_time"] = msg["timestamp"]
-        return jsonify({"is_admin": True, "total_unread": total_unread, "operators": operators, "broadcast": current_broadcast})
+        operators_display = {display_operator_token(k, scope): v for k, v in operators.items()}
+        return jsonify({"is_admin": True, "total_unread": total_unread, "operators": operators_display, "broadcast": current_broadcast})
     else:
         if not token:
             return jsonify({"error": "Acesso negado."}), 403
@@ -838,12 +1102,13 @@ def get_chat_status():
 @app.route('/api/chat', methods=['GET'])
 def get_private_chat():
     is_admin = session.get("admin_logged_in")
+    scope = get_client_scope()
     if is_admin:
-        target = (request.args.get('target') or "").strip()
+        target = scoped_operator_token((request.args.get('target') or "").strip(), scope)
         if not target:
             return jsonify({"messages": []})
     else:
-        target = _resolve_operator_token()
+        target = scoped_operator_token(_resolve_operator_token(), scope)
         if not target:
             return jsonify({"error": "Acesso negado."}), 403
     
@@ -862,12 +1127,13 @@ def get_private_chat():
 @app.route('/api/chat', methods=['POST'])
 def post_private_chat():
     is_admin = session.get("admin_logged_in")
+    scope = get_client_scope()
     if is_admin:
-        target = (request.args.get('target') or "").strip()
+        target = scoped_operator_token((request.args.get('target') or "").strip(), scope)
         if not target:
             return jsonify({"error": "No target"}), 400
     else:
-        target = _resolve_operator_token()
+        target = scoped_operator_token(_resolve_operator_token(), scope)
         if not target:
             return jsonify({"error": "Acesso negado."}), 403
     text = (request.json or {}).get('text', '').strip()

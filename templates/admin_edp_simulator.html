@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="text-primary mb-0 fw-bold"><i class="fa-solid fa-sliders me-2"></i>Admin Simulador EDP</h3>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-primary text-white fw-bold">Tarifas de Eletricidade</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered mb-0 align-middle text-center bg-body text-body">
+                <thead class="table-secondary">
+                    <tr>
+                        <th>Oferta</th>
+                        <th>Tarifa</th>
+                        <th>Periodo</th>
+                        <th>Preco kWh</th>
+                        <th>Preco Potencia/Dia</th>
+                        <th>DD</th>
+                        <th>FE</th>
+                        <th>Ativo</th>
+                        <th>Acoes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in tarifas_ele %}
+                    <tr>
+                        <form method="POST" action="{{ url_for('admin_edp_simulator_eletricidade_upsert') }}">
+                            <td><input name="oferta" class="form-control form-control-sm" value="{{ row.oferta }}" required></td>
+                            <td>
+                                <select name="tarifa" class="form-select form-select-sm" required>
+                                    <option value="Simples" {% if row.tarifa == 'Simples' %}selected{% endif %}>Simples</option>
+                                    <option value="Bi-horaria" {% if row.tarifa == 'Bi-horaria' %}selected{% endif %}>Bi-horaria</option>
+                                    <option value="Tri-horaria" {% if row.tarifa == 'Tri-horaria' %}selected{% endif %}>Tri-horaria</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select name="periodo" class="form-select form-select-sm" required>
+                                    <option value="Simples" {% if row.periodo == 'Simples' %}selected{% endif %}>Simples</option>
+                                    <option value="Fora de Vazio" {% if row.periodo == 'Fora de Vazio' %}selected{% endif %}>Fora de Vazio</option>
+                                    <option value="Vazio" {% if row.periodo == 'Vazio' %}selected{% endif %}>Vazio</option>
+                                    <option value="Ponta" {% if row.periodo == 'Ponta' %}selected{% endif %}>Ponta</option>
+                                    <option value="Cheias" {% if row.periodo == 'Cheias' %}selected{% endif %}>Cheias</option>
+                                </select>
+                            </td>
+                            <td><input type="number" step="0.000001" min="0" name="preco_kwh" class="form-control form-control-sm" value="{{ row.preco_kwh }}" required></td>
+                            <td><input type="number" step="0.000001" min="0" name="preco_potencia_dia" class="form-control form-control-sm" value="{{ row.preco_potencia_dia }}" required></td>
+                            <td>
+                                <select name="tem_debito_direto" class="form-select form-select-sm">
+                                    <option value="0" {% if not row.tem_debito_direto %}selected{% endif %}>Nao</option>
+                                    <option value="1" {% if row.tem_debito_direto %}selected{% endif %}>Sim</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select name="tem_fatura_eletronica" class="form-select form-select-sm">
+                                    <option value="0" {% if not row.tem_fatura_eletronica %}selected{% endif %}>Nao</option>
+                                    <option value="1" {% if row.tem_fatura_eletronica %}selected{% endif %}>Sim</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select name="ativo" class="form-select form-select-sm">
+                                    <option value="1" {% if row.ativo %}selected{% endif %}>Sim</option>
+                                    <option value="0" {% if not row.ativo %}selected{% endif %}>Nao</option>
+                                </select>
+                            </td>
+                            <td class="d-flex gap-1 justify-content-center">
+                                <button type="submit" class="btn btn-success btn-sm fw-bold">Guardar</button>
+                        </form>
+                        <form method="POST" action="{{ url_for('admin_edp_simulator_eletricidade_delete', id=row.id) }}">
+                                <button type="submit" class="btn btn-outline-danger btn-sm fw-bold">Apagar</button>
+                        </form>
+                            </td>
+                    </tr>
+                    {% endfor %}
+                    <tr class="table-light">
+                        <form method="POST" action="{{ url_for('admin_edp_simulator_eletricidade_upsert') }}">
+                            <td><input name="oferta" class="form-control form-control-sm" placeholder="Nova oferta" required></td>
+                            <td>
+                                <select name="tarifa" class="form-select form-select-sm" required>
+                                    <option value="Simples">Simples</option>
+                                    <option value="Bi-horaria">Bi-horaria</option>
+                                    <option value="Tri-horaria">Tri-horaria</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select name="periodo" class="form-select form-select-sm" required>
+                                    <option value="Simples">Simples</option>
+                                    <option value="Fora de Vazio">Fora de Vazio</option>
+                                    <option value="Vazio">Vazio</option>
+                                    <option value="Ponta">Ponta</option>
+                                    <option value="Cheias">Cheias</option>
+                                </select>
+                            </td>
+                            <td><input type="number" step="0.000001" min="0" name="preco_kwh" class="form-control form-control-sm" required></td>
+                            <td><input type="number" step="0.000001" min="0" name="preco_potencia_dia" class="form-control form-control-sm" required></td>
+                            <td>
+                                <select name="tem_debito_direto" class="form-select form-select-sm">
+                                    <option value="0">Nao</option>
+                                    <option value="1">Sim</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select name="tem_fatura_eletronica" class="form-select form-select-sm">
+                                    <option value="0">Nao</option>
+                                    <option value="1">Sim</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select name="ativo" class="form-select form-select-sm">
+                                    <option value="1" selected>Sim</option>
+                                    <option value="0">Nao</option>
+                                </select>
+                            </td>
+                            <td><button type="submit" class="btn btn-primary btn-sm fw-bold">Adicionar</button></td>
+                        </form>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-danger text-white fw-bold">Tarifas de Gas</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered mb-0 align-middle text-center bg-body text-body">
+                <thead class="table-secondary">
+                    <tr>
+                        <th>Escalao</th>
+                        <th>Fidelizacao (anos)</th>
+                        <th>Preco kWh</th>
+                        <th>Preco Fixo/Dia</th>
+                        <th>Ativo</th>
+                        <th>Acoes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in tarifas_gas %}
+                    <tr>
+                        <form method="POST" action="{{ url_for('admin_edp_simulator_gas_upsert') }}">
+                            <td>
+                                <select name="escalao" class="form-select form-select-sm">
+                                    <option value="Escalão 1" {% if row.escalao == 'Escalão 1' %}selected{% endif %}>Escalão 1</option>
+                                    <option value="Escalão 2" {% if row.escalao == 'Escalão 2' %}selected{% endif %}>Escalão 2</option>
+                                    <option value="Escalão 3" {% if row.escalao == 'Escalão 3' %}selected{% endif %}>Escalão 3</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select name="fidelizacao_anos" class="form-select form-select-sm">
+                                    <option value="1" {% if row.fidelizacao_anos == 1 %}selected{% endif %}>1</option>
+                                    <option value="2" {% if row.fidelizacao_anos == 2 %}selected{% endif %}>2</option>
+                                </select>
+                            </td>
+                            <td><input type="number" step="0.000001" min="0" name="preco_kwh" class="form-control form-control-sm" value="{{ row.preco_kwh }}" required></td>
+                            <td><input type="number" step="0.000001" min="0" name="preco_fixo_dia" class="form-control form-control-sm" value="{{ row.preco_fixo_dia }}" required></td>
+                            <td>
+                                <select name="ativo" class="form-select form-select-sm">
+                                    <option value="1" {% if row.ativo %}selected{% endif %}>Sim</option>
+                                    <option value="0" {% if not row.ativo %}selected{% endif %}>Nao</option>
+                                </select>
+                            </td>
+                            <td class="d-flex gap-1 justify-content-center">
+                                <button type="submit" class="btn btn-success btn-sm fw-bold">Guardar</button>
+                        </form>
+                        <form method="POST" action="{{ url_for('admin_edp_simulator_gas_delete', id=row.id) }}">
+                                <button type="submit" class="btn btn-outline-danger btn-sm fw-bold">Apagar</button>
+                        </form>
+                            </td>
+                    </tr>
+                    {% endfor %}
+                    <tr class="table-light">
+                        <form method="POST" action="{{ url_for('admin_edp_simulator_gas_upsert') }}">
+                            <td>
+                                <select name="escalao" class="form-select form-select-sm">
+                                    <option value="Escalão 1">Escalão 1</option>
+                                    <option value="Escalão 2">Escalão 2</option>
+                                    <option value="Escalão 3">Escalão 3</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select name="fidelizacao_anos" class="form-select form-select-sm">
+                                    <option value="1">1</option>
+                                    <option value="2">2</option>
+                                </select>
+                            </td>
+                            <td><input type="number" step="0.000001" min="0" name="preco_kwh" class="form-control form-control-sm" required></td>
+                            <td><input type="number" step="0.000001" min="0" name="preco_fixo_dia" class="form-control form-control-sm" required></td>
+                            <td>
+                                <select name="ativo" class="form-select form-select-sm">
+                                    <option value="1" selected>Sim</option>
+                                    <option value="0">Nao</option>
+                                </select>
+                            </td>
+                            <td><button type="submit" class="btn btn-primary btn-sm fw-bold">Adicionar</button></td>
+                        </form>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

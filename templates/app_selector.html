@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="text-center py-4 mb-4">
+    <h2 class="fw-bold text-primary mb-2">Selecionar Aplicação</h2>
+    <p class="text-muted mb-0">Escolha a plataforma a que pretende aceder.</p>
+</div>
+
+<div class="row g-4 justify-content-center">
+    {% if can_endesa %}
+    <div class="col-md-5 col-lg-4">
+        <form method="POST" action="{{ url_for('select_app') }}">
+            <input type="hidden" name="app" value="endesacalc">
+            <button type="submit" class="card h-100 w-100 shadow-sm card-hover text-center p-4 bg-body border border-primary border-opacity-25">
+                <div class="card-body">
+                    <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-10 text-primary rounded-circle mb-4" style="width: 90px; height: 90px;">
+                        <i class="fa-solid fa-bolt fs-1"></i>
+                    </div>
+                    <h4 class="text-body fw-bold">Endesa B2B Calc</h4>
+                    <p class="text-body-secondary mt-3 mb-0">Eletricidade, Gás, CRM e gestão tarifária Endesa.</p>
+                </div>
+            </button>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if can_edp %}
+    <div class="col-md-5 col-lg-4">
+        <form method="POST" action="{{ url_for('select_app') }}">
+            <input type="hidden" name="app" value="edpsimulator">
+            <button type="submit" class="card h-100 w-100 shadow-sm card-hover text-center p-4 bg-body border border-success border-opacity-25">
+                <div class="card-body">
+                    <div class="d-inline-flex align-items-center justify-content-center bg-success bg-opacity-10 text-success rounded-circle mb-4" style="width: 90px; height: 90px;">
+                        <i class="fa-solid fa-scale-balanced fs-1"></i>
+                    </div>
+                    <h4 class="text-body fw-bold">EDP Simulator App</h4>
+                    <p class="text-body-secondary mt-3 mb-0">Simulador EDP Comercial e configuração de tarifas EDP.</p>
+                </div>
+            </button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+{% if not can_endesa and not can_edp %}
+<div class="alert alert-danger mt-4 text-center fw-bold">
+    Sem permissões de acesso atribuídas para qualquer aplicação.
+</div>
+{% endif %}
+{% endblock %}

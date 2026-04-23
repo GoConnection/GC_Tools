@@ -81,25 +81,49 @@
     </style>
 </head>
 <body class="bg-body">
+    {% set req_scope = request.args.get('scope', '').lower() %}
+    {% set default_scope = 'edp' if admin_can_edp and not admin_can_endesa else 'endesa' %}
+    {% set page_scope = 'edp' if req_scope == 'edp' or active_app == 'edpsimulator' or request.path.startswith('/edp-simulator') or request.path.startswith('/admin/edp-simulator') else default_scope %}
+    {% set is_selector_page = request.path == '/app-selector' %}
+    {% set home_endpoint = 'edp_simulator' if active_app == 'edpsimulator' else ('endesa_calculator' if active_app == 'endesacalc' else ('endesa_calculator' if agent_token else 'app_selector')) %}
+    {% set crm_widgets_enabled = ((not is_admin) or (active_app != '')) and (not is_selector_page) %}
 
     <nav class="navbar navbar-expand-lg navbar-dark navbar-custom mb-4 py-3 sticky-top">
         <div class="container">
-            <a class="navbar-brand" href="{% if agent_token %}{{ url_for('index') }}?token={{ agent_token|urlencode }}{% else %}{{ url_for('index') }}{% endif %}"><i class="fa-solid fa-bolt text-warning me-2"></i>GO CONNECTION</a>
+            <a class="navbar-brand" href="{% if agent_token %}{{ url_for(home_endpoint) }}?token={{ agent_token|urlencode }}{% else %}{{ url_for(home_endpoint) }}{% endif %}"><i class="fa-solid fa-bolt text-warning me-2"></i>GO CONNECTION</a>
             <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
+                    {% if is_selector_page %}
                     <li class="nav-item">
-                        <a class="nav-link {% if request.path == '/' %}active fw-bold text-white{% endif %}" href="{% if agent_token %}{{ url_for('index') }}?token={{ agent_token|urlencode }}{% else %}{{ url_for('index') }}{% endif %}"><i class="fa-solid fa-house me-1"></i> Início</a>
+                        <a class="nav-link active fw-bold text-white" href="{{ url_for('app_selector') }}"><i class="fa-solid fa-table-cells-large me-1"></i> Selecionar Aplicação</a>
                     </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path in ['/', '/app-selector', '/endesa-calculator', '/edp-simulator'] %}active fw-bold text-white{% endif %}" href="{% if agent_token %}{{ url_for(home_endpoint) }}?token={{ agent_token|urlencode }}{% else %}{{ url_for(home_endpoint) }}{% endif %}"><i class="fa-solid fa-house me-1"></i> Início</a>
+                    </li>
+                    {% if is_admin and active_app %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/app-selector' %}active fw-bold text-white{% endif %}" href="{{ url_for('app_selector') }}"><i class="fa-solid fa-table-cells-large me-1"></i> Selecionar Aplicação</a>
+                    </li>
+                    {% endif %}
+                    {% if active_app == 'endesacalc' or (is_admin and admin_can_endesa and not active_app) %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == '/eletricidade' %}active fw-bold text-white{% endif %}" href="{% if agent_token %}{{ url_for('calc_ele') }}?token={{ agent_token|urlencode }}{% else %}{{ url_for('calc_ele') }}{% endif %}"><i class="fa-solid fa-bolt me-1"></i> Eletricidade</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == '/gas' %}active fw-bold text-white{% endif %}" href="{% if agent_token %}{{ url_for('calc_gas') }}?token={{ agent_token|urlencode }}{% else %}{{ url_for('calc_gas') }}{% endif %}"><i class="fa-solid fa-fire text-danger me-1"></i> Gás Natural</a>
                     </li>
+                    {% endif %}
+                    {% if (active_app == 'edpsimulator' and not is_admin) or (is_admin and admin_can_edp and not active_app) %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/edp-simulator' %}active fw-bold text-white{% endif %}" href="{% if agent_token %}{{ url_for('edp_simulator') }}?token={{ agent_token|urlencode }}{% else %}{{ url_for('edp_simulator') }}{% endif %}"><i class="fa-solid fa-scale-balanced me-1"></i> Simulador EDP</a>
+                    </li>
+                    {% endif %}
+                    {% endif %}
                 </ul>
                 <ul class="navbar-nav align-items-center">
                     
@@ -140,10 +164,17 @@
                             <i class="fa-solid fa-gear me-1"></i> Configurações
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2">
+                            <li><a class="dropdown-item py-2 fw-bold text-primary" href="{{ url_for('app_selector') }}"><i class="fa-solid fa-table-cells-large me-2"></i> Selecionar App</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            {% if admin_can_endesa and (active_app != 'edpsimulator') %}
                             <li><a class="dropdown-item py-2 fw-bold" href="{{ url_for('config_ele') }}"><i class="fa-solid fa-bolt text-warning me-2"></i> Tarifários Eletricidade</a></li>
                             <li><a class="dropdown-item py-2 fw-bold" href="{{ url_for('config_gas') }}"><i class="fa-solid fa-fire text-danger me-2"></i> Tarifários Gás</a></li>
+                            {% endif %}
+                            {% if admin_can_edp and (active_app != 'endesacalc') %}
+                            <li><a class="dropdown-item py-2 fw-bold" href="{{ url_for('admin_edp_simulator') }}"><i class="fa-solid fa-scale-balanced text-primary me-2"></i> Simulador EDP</a></li>
+                            {% endif %}
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item py-2 fw-bold text-primary" href="{{ url_for('admin_notas') }}"><i class="fa-solid fa-users me-2"></i> Admin CRM (Notas)</a></li>
+                            <li><a class="dropdown-item py-2 fw-bold text-primary" href="{{ url_for('admin_notas', scope=page_scope) }}"><i class="fa-solid fa-users me-2"></i> Admin CRM (Notas)</a></li>
                         </ul>
                     </li>
                     {% endif %}
@@ -228,6 +259,7 @@
         {% block content %}{% endblock %}
     </main>
 
+    {% if crm_widgets_enabled %}
     <div id="notes-widget-container">
         <button id="notes-toggle-btn" class="btn btn-warning rounded-circle d-flex align-items-center justify-content-center" onclick="toggleNotesPanel()">
             <i class="fa-solid fa-pen-to-square"></i>
@@ -353,6 +385,7 @@
             <button class="btn btn-primary btn-sm" onclick="sendChatMessage()"><i class="fa-solid fa-paper-plane"></i></button>
         </div>
     </div>
+    {% endif %}
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
@@ -395,7 +428,9 @@
                 Notification.requestPermission();
             }
             
-            setInterval(checkChatStatus, 3000);
+            if ({{ 'true' if crm_widgets_enabled else 'false' }}) {
+                setInterval(checkChatStatus, 3000);
+            }
         });
 
         // ==========================================
@@ -405,10 +440,16 @@
         const sessionOperatorId = {{ (operator_id or '') | tojson }};
         const userToken = urlParams.get('token') || sessionOperatorId || 'admin_session';
         const isAdmin = {{ 'true' if is_admin else 'false' }};
+        const enableCrmWidgets = {{ 'true' if crm_widgets_enabled else 'false' }};
+        const clientScope = {{ page_scope | tojson }};
         const APP_ROOT = "{{ request.script_root or '' }}";
         function apiUrl(path) {
             if (!path.startsWith('/')) path = '/' + path;
             return `${APP_ROOT}${path}`;
+        }
+        function scopedUrl(url) {
+            const sep = url.includes('?') ? '&' : '?';
+            return `${url}${sep}scope=${encodeURIComponent(clientScope)}`;
         }
         
         let lastUnreadCount = 0;
@@ -439,9 +480,9 @@
             const txt = document.getElementById('broadcast-text').value;
             if(!txt) return;
             try {
-                await fetch(apiUrl('/api/broadcast'), {
+                await fetch(scopedUrl(apiUrl('/api/broadcast')), {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: txt })
+                    body: JSON.stringify({ text: txt, scope: clientScope })
                 });
                 document.getElementById('broadcast-text').value = '';
                 bootstrap.Modal.getInstance(document.getElementById('modalBroadcast')).hide();
@@ -449,8 +490,9 @@
         }
 
         async function checkChatStatus() {
+            if (!enableCrmWidgets) return;
             try {
-                const res = await fetch(`${apiUrl('/api/chat/status')}?token=${encodeURIComponent(userToken)}`);
+                const res = await fetch(scopedUrl(`${apiUrl('/api/chat/status')}?token=${encodeURIComponent(userToken)}`));
                 const data = await res.json();
                 
                 if(data.broadcast && data.broadcast.id) {
@@ -464,6 +506,7 @@
                 }
 
                 const badge = document.getElementById('chat-global-badge');
+                if (!badge) return;
                 if(data.total_unread > 0) {
                     badge.innerText = data.total_unread;
                     badge.classList.remove('d-none');
@@ -488,6 +531,7 @@
 
         function toggleChat() {
             const panel = document.getElementById('chat-panel');
+            if (!panel) return;
             isChatOpen = !isChatOpen;
             if(isChatOpen) { panel.classList.remove('d-none'); fetchChatMessages(); } else { panel.classList.add('d-none'); }
         }
@@ -511,7 +555,7 @@
             let target = userToken;
             if(isAdmin) { target = document.getElementById('admin-chat-target').value; if(!target) return; }
             try {
-                const res = await fetch(`${apiUrl('/api/chat')}?target=${encodeURIComponent(target)}`);
+                const res = await fetch(scopedUrl(`${apiUrl('/api/chat')}?target=${encodeURIComponent(target)}`));
                 const data = await res.json();
                 const container = document.getElementById('chat-messages-container');
                 if(data.messages) {
@@ -536,7 +580,7 @@
             if(isAdmin) { target = document.getElementById('admin-chat-target').value; if(!target) { alert("Selecione um operador na lista!"); return; } }
             input.value = '';
             try {
-                await fetch(`${apiUrl('/api/chat')}?target=${encodeURIComponent(target)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text }) });
+                await fetch(scopedUrl(`${apiUrl('/api/chat')}?target=${encodeURIComponent(target)}`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text, scope: clientScope }) });
                 fetchChatMessages(); checkChatStatus();
             } catch(e) {}
         }
@@ -549,13 +593,14 @@
 
         function toggleNotesPanel() {
             const panel = document.getElementById('notes-panel');
+            if (!panel) return;
             panel.classList.toggle('d-none');
             if (!panel.classList.contains('d-none')) loadNotesFromServer();
         }
 
         async function loadNotesFromServer() {
             try {
-                const res = await fetch(`${apiUrl('/api/notes')}?token=${encodeURIComponent(userToken)}`);
+                const res = await fetch(scopedUrl(`${apiUrl('/api/notes')}?token=${encodeURIComponent(userToken)}`));
                 const data = await res.json();
                 if (data.notes) { userNotes = data.notes; renderNotesList(); }
             } catch (e) {}
@@ -582,7 +627,8 @@
 
             try {
                 const payload = { id: currentNoteId, title: title, subtitle: subtitle, nipc: nipc, phone: phone, desc: desc, status: status, followup_date: f_date, followup_time: f_time };
-                const res = await fetch(`${apiUrl('/api/notes')}?token=${encodeURIComponent(userToken)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                payload.scope = clientScope;
+                const res = await fetch(scopedUrl(`${apiUrl('/api/notes')}?token=${encodeURIComponent(userToken)}`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 const data = await res.json();
                 if (data.id && currentNoteId === 'new') { currentNoteId = data.id; loadNotesFromServer(); }
             } catch (e) {}
@@ -591,7 +637,8 @@
         async function createNewNote() {
             try {
                 const payload = { title: 'Nova Lead', subtitle: '', nipc: '', phone: '', desc: '', status: 'lead', followup_date: '', followup_time: '' };
-                const res = await fetch(`${apiUrl('/api/notes')}?token=${encodeURIComponent(userToken)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                payload.scope = clientScope;
+                const res = await fetch(scopedUrl(`${apiUrl('/api/notes')}?token=${encodeURIComponent(userToken)}`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 const data = await res.json();
                 if (data.success) { await loadNotesFromServer(); openNote(data.id); }
             } catch (e) {}
@@ -600,7 +647,7 @@
         async function deleteCurrentNote() {
             if (!currentNoteId || !confirm('Deseja mesmo Arquivar esta Lead? Ela vai desaparecer do seu painel, mas o Supervisor pode sempre recuperá-la.')) return;
             try {
-                const res = await fetch(`${apiUrl(`/api/notes/${encodeURIComponent(currentNoteId)}`)}?token=${encodeURIComponent(userToken)}`, { method: 'DELETE' });
+                const res = await fetch(scopedUrl(`${apiUrl(`/api/notes/${encodeURIComponent(currentNoteId)}`)}?token=${encodeURIComponent(userToken)}`), { method: 'DELETE' });
                 if (res.ok) {
                     currentNoteId = null;
                     document.getElementById('note-active-area').classList.add('d-none');
@@ -785,8 +832,9 @@
             try {
                 const search = window.location.search.includes('token=') ? window.location.search : `?token=${userToken}`;
                 const payload = { id: targetNoteId, scenario: pendingScenarioData };
+                payload.scope = clientScope;
                 
-                const response = await fetch(apiUrl('/api/notes') + search, {
+                const response = await fetch(scopedUrl(apiUrl('/api/notes') + search), {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)

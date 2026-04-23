@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row">
+    <div class="col-xl-8">
+        <h2 class="mb-4 text-primary">Simulador EDP Comercial</h2>
+
+        <form id="edpSimulatorForm" class="bg-body-tertiary p-4 border rounded shadow-sm">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Atributos do cliente</label>
+                    <select name="atributos" class="form-select" required>
+                        <option value="Nenhum atributo">Nenhum atributo</option>
+                        <option value="Debito Direto">Debito Direto</option>
+                        <option value="Fatura Eletronica">Fatura Eletronica</option>
+                        <option value="Debito Direto + Fatura Eletronica">Debito Direto + Fatura Eletronica</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Tarifa Social</label>
+                    <select name="tem_tarifa_social" class="form-select" required>
+                        <option value="0">Nao</option>
+                        <option value="1">Sim</option>
+                    </select>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Potencia (kVA)</label>
+                    <input type="number" step="0.01" min="0" name="potencia_kva" class="form-control" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Tarifa</label>
+                    <select id="tarifa" name="tarifa" class="form-select" required>
+                        {% if tarifas %}
+                            {% for t in tarifas %}
+                            <option value="{{ t }}">{{ t }}</option>
+                            {% endfor %}
+                        {% else %}
+                            <option value="Simples">Simples</option>
+                            <option value="Bi-horaria">Bi-horaria</option>
+                            <option value="Tri-horaria">Tri-horaria</option>
+                        {% endif %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">N. dias eletricidade</label>
+                    <input type="number" step="0.01" min="1" name="num_dias" class="form-control" value="30" required>
+                </div>
+
+                <div class="col-12">
+                    <div class="border rounded p-3 bg-body">
+                        <label class="fw-bold mb-2">Consumos (kWh)</label>
+                        <div id="consumo-simples" class="row g-2">
+                            <div class="col-md-6">
+                                <input type="number" step="0.01" min="0" name="consumo_simples" class="form-control" placeholder="Consumo Simples">
+                            </div>
+                        </div>
+                        <div id="consumo-bih" class="row g-2 d-none">
+                            <div class="col-md-6">
+                                <input type="number" step="0.01" min="0" name="consumo_fora_vazio" class="form-control" placeholder="Consumo Fora de Vazio">
+                            </div>
+                            <div class="col-md-6">
+                                <input type="number" step="0.01" min="0" name="consumo_vazio_bih" class="form-control" placeholder="Consumo Vazio">
+                            </div>
+                        </div>
+                        <div id="consumo-tri" class="row g-2 d-none">
+                            <div class="col-md-4">
+                                <input type="number" step="0.01" min="0" name="consumo_ponta" class="form-control" placeholder="Consumo Ponta">
+                            </div>
+                            <div class="col-md-4">
+                                <input type="number" step="0.01" min="0" name="consumo_cheias" class="form-control" placeholder="Consumo Cheias">
+                            </div>
+                            <div class="col-md-4">
+                                <input type="number" step="0.01" min="0" name="consumo_vazio_tri" class="form-control" placeholder="Consumo Vazio">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Oferta EDP</label>
+                    <select name="oferta" class="form-select" required>
+                        {% if not ofertas %}
+                        <option value="">Sem ofertas configuradas</option>
+                        {% endif %}
+                        {% for oferta in ofertas %}
+                        <option value="{{ oferta }}">{{ oferta }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Fatura concorrencia (€)</label>
+                    <input type="number" step="0.01" min="0" name="fatura_concorrencia" class="form-control" required>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Tem gas?</label>
+                    <select id="tem_gas" name="tem_gas" class="form-select" required>
+                        <option value="0">Nao</option>
+                        <option value="1">Sim</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="gas-section" class="border rounded p-3 bg-body mt-3 d-none">
+                <h6 class="fw-bold text-danger mb-3">Dados de Gas</h6>
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Escalao</label>
+                        <select name="gas_escalao" class="form-select">
+                            <option value="Escalão 1">Escalão 1</option>
+                            <option value="Escalão 2">Escalão 2</option>
+                            <option value="Escalão 3">Escalão 3</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Fidelizacao (anos)</label>
+                        <select name="gas_fidelizacao_anos" class="form-select">
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">N. dias gas</label>
+                        <input type="number" step="0.01" min="1" name="gas_num_dias" class="form-control" value="30">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Consumo gas (kWh)</label>
+                        <input type="number" step="0.01" min="0" name="gas_consumo_kwh" class="form-control">
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-grid mt-4">
+                <button type="submit" class="btn btn-primary btn-lg fw-bold">Calcular comparativo</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="col-xl-4">
+        <div id="resultado-card" class="card shadow-sm border-success d-none">
+            <div class="card-header bg-success text-white fw-bold">Resultado da simulacao</div>
+            <div class="card-body">
+                <div id="resultado-erro" class="alert alert-danger d-none mb-3"></div>
+                <div class="row text-center mb-3">
+                    <div class="col-6">
+                        <div class="p-2 border rounded bg-body-tertiary">
+                            <small class="text-muted d-block">Concorrencia</small>
+                            <strong id="out-concorrencia" class="text-danger">0.00 €</strong>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-2 border rounded bg-body-tertiary">
+                            <small class="text-muted d-block">EDP</small>
+                            <strong id="out-edp" class="text-success">0.00 €</strong>
+                        </div>
+                    </div>
+                </div>
+                <ul class="list-group">
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>Poupanca mensal</span>
+                        <strong id="out-poupanca-valor">0.00 €</strong>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>Poupanca (%)</span>
+                        <strong id="out-poupanca-perc">0.00 %</strong>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>Poupanca anual</span>
+                        <strong id="out-poupanca-anual">0.00 €</strong>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function updateTarifaInputs() {
+        const tarifa = document.getElementById('tarifa').value;
+        document.getElementById('consumo-simples').classList.toggle('d-none', tarifa !== 'Simples');
+        document.getElementById('consumo-bih').classList.toggle('d-none', tarifa !== 'Bi-horaria');
+        document.getElementById('consumo-tri').classList.toggle('d-none', tarifa !== 'Tri-horaria');
+    }
+
+    function updateGasSection() {
+        const showGas = document.getElementById('tem_gas').value === '1';
+        document.getElementById('gas-section').classList.toggle('d-none', !showGas);
+    }
+
+    function formatMoney(value) {
+        if (value === null || value === undefined) return '-';
+        return `${Number(value).toFixed(2)} €`;
+    }
+
+    document.getElementById('tarifa').addEventListener('change', updateTarifaInputs);
+    document.getElementById('tem_gas').addEventListener('change', updateGasSection);
+    updateTarifaInputs();
+    updateGasSection();
+
+    document.getElementById('edpSimulatorForm').addEventListener('submit', async function (event) {
+        event.preventDefault();
+        const formData = new FormData(this);
+        const response = await fetch(apiUrl('/edp-simulator/calcular'), {
+            method: 'POST',
+            body: formData
+        });
+        const result = await response.json();
+
+        const resultCard = document.getElementById('resultado-card');
+        const errBox = document.getElementById('resultado-erro');
+        resultCard.classList.remove('d-none');
+
+        if (result.erro) {
+            errBox.textContent = result.erro;
+            errBox.classList.remove('d-none');
+        } else {
+            errBox.classList.add('d-none');
+        }
+
+        document.getElementById('out-concorrencia').textContent = formatMoney(formData.get('fatura_concorrencia'));
+        document.getElementById('out-edp').textContent = formatMoney(result.fatura_edp_total);
+        document.getElementById('out-poupanca-valor').textContent = formatMoney(result.poupanca_valor);
+        document.getElementById('out-poupanca-perc').textContent = result.poupanca_percentagem === null ? '-' : `${Number(result.poupanca_percentagem).toFixed(2)} %`;
+        document.getElementById('out-poupanca-anual').textContent = formatMoney(result.poupanca_anual);
+    });
+</script>
+{% endblock %}

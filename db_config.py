@@ -839,19 +839,37 @@ def save_notes_sql(data: Dict[str, List[Dict[str, Any]]]) -> None:
 # CHAT & BROADCAST (SQL SERVER INTEGRATION)
 # ==========================================
 
-def load_chat_sql() -> Dict[str, Any]:
+def load_chat_sql(scope: str = "endesa") -> Dict[str, Any]:
     """Lê as mensagens da tabela unificada simulando a estrutura original do JSON."""
     try:
         with _conn() as conn:
             cur = conn.cursor()
+            scope_norm = str(scope or "endesa").strip().lower()
+            scope_norm = "edp" if scope_norm == "edp" else "endesa"
             
             # Carregar o último Broadcast (Top 1 mais recente)
-            cur.execute(f"""
-                SELECT TOP 1 Id, MessageText, Timestamp 
-                FROM {_q('calculadora_mensagens')} 
-                WHERE TipoMensagem = 'broadcast' 
-                ORDER BY CreatedAt DESC
-            """)
+            if scope_norm == "edp":
+                cur.execute(
+                    f"""
+                    SELECT TOP 1 Id, MessageText, Timestamp
+                    FROM {_q('calculadora_mensagens')}
+                    WHERE TipoMensagem = 'broadcast'
+                      AND TokenId = ?
+                    ORDER BY CreatedAt DESC
+                    """,
+                    ("edp",),
+                )
+            else:
+                cur.execute(
+                    f"""
+                    SELECT TOP 1 Id, MessageText, Timestamp
+                    FROM {_q('calculadora_mensagens')}
+                    WHERE TipoMensagem = 'broadcast'
+                      AND (TokenId IS NULL OR TokenId = '' OR TokenId = ?)
+                    ORDER BY CreatedAt DESC
+                    """,
+                    ("endesa",),
+                )
             b_row = cur.fetchone()
             broadcast_data = {}
             if b_row:
@@ -863,16 +881,36 @@ def load_chat_sql() -> Dict[str, Any]:
             
             # Carregar as mensagens privadas (limitado às últimas 1000 para não estourar a memória)
             # Carregamos em DESC para ter as mais novas, e depois ordenamos ASC no app
-            cur.execute(f"""
-                SELECT Id, TokenId, Sender, MessageText, Timestamp, IsReadAdmin, IsReadOp 
-                FROM (
-                    SELECT TOP 1000 Id, TokenId, Sender, MessageText, Timestamp, IsReadAdmin, IsReadOp, CreatedAt
-                    FROM {_q('calculadora_mensagens')}
-                    WHERE TipoMensagem = 'privado'
-                    ORDER BY CreatedAt DESC
-                ) sub
-                ORDER BY sub.CreatedAt ASC
-            """)
+            if scope_norm == "edp":
+                cur.execute(
+                    f"""
+                    SELECT Id, TokenId, Sender, MessageText, Timestamp, IsReadAdmin, IsReadOp
+                    FROM (
+                        SELECT TOP 1000 Id, TokenId, Sender, MessageText, Timestamp, IsReadAdmin, IsReadOp, CreatedAt
+                        FROM {_q('calculadora_mensagens')}
+                        WHERE TipoMensagem = 'privado'
+                          AND TokenId LIKE ?
+                        ORDER BY CreatedAt DESC
+                    ) sub
+                    ORDER BY sub.CreatedAt ASC
+                    """,
+                    ("edp::%",),
+                )
+            else:
+                cur.execute(
+                    f"""
+                    SELECT Id, TokenId, Sender, MessageText, Timestamp, IsReadAdmin, IsReadOp
+                    FROM (
+                        SELECT TOP 1000 Id, TokenId, Sender, MessageText, Timestamp, IsReadAdmin, IsReadOp, CreatedAt
+                        FROM {_q('calculadora_mensagens')}
+                        WHERE TipoMensagem = 'privado'
+                          AND (TokenId IS NULL OR TokenId NOT LIKE ?)
+                        ORDER BY CreatedAt DESC
+                    ) sub
+                    ORDER BY sub.CreatedAt ASC
+                    """,
+                    ("edp::%",),
+                )
             
             messages = []
             for row in cur.fetchall():
@@ -892,11 +930,13 @@ def load_chat_sql() -> Dict[str, Any]:
         return {"messages": [], "broadcast": {}}
 
 
-def save_chat_sql(data: Dict[str, Any]) -> None:
+def save_chat_sql(data: Dict[str, Any], scope: str = "endesa") -> None:
     """Grava as mensagens novas e atualiza os estados lidos via UPSERT."""
     try:
         with _conn() as conn:
             cur = conn.cursor()
+            scope_norm = str(scope or "endesa").strip().lower()
+            scope_norm = "edp" if scope_norm == "edp" else "endesa"
             
             # 1. Guardar Mensagens Privadas
             messages = data.get("messages", [])
@@ -945,9 +985,10 @@ def save_chat_sql(data: Dict[str, Any]) -> None:
                     cur.execute(f"""
                         INSERT INTO {_q('calculadora_mensagens')} 
                         (Id, TipoMensagem, TokenId, Sender, MessageText, Timestamp, IsReadAdmin, IsReadOp)
-                        VALUES (?, 'broadcast', NULL, 'Admin', ?, ?, 1, 1)
+                        VALUES (?, 'broadcast', ?, 'Admin', ?, ?, 1, 1)
                     """, (
                         b_id,
+                        scope_norm,
                         broadcast.get("text", ""),
                         broadcast.get("timestamp", "")
                     ))

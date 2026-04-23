@@ -19,6 +19,8 @@ _SCOPES = ["email"]
 # View: GoConnection.dbo.vw_GCTools_Admins — column holding Entra sign-in email
 _DEFAULT_EMAIL_COL = "Email"
 _ADMIN_VIEW = "GoConnection.dbo.vw_GCTools_Admins"
+_COL_ENDESA_APP = "EndesaB2B_Calc_App"
+_COL_EDP_APP = "EDP_Simulator_App"
 
 
 def _authority(tenant_id: str) -> str:
@@ -96,6 +98,36 @@ def is_email_in_gctools_admins(email: str) -> bool:
             conn.close()
     except pyodbc.Error:
         return False
+
+
+def get_admin_app_permissions(email: str) -> Optional[Dict[str, bool]]:
+    """Return app permissions for an admin email from vw_GCTools_Admins."""
+    em = (email or "").strip().lower()
+    if not em or "@" not in em:
+        return None
+
+    col = _email_column_sql()
+    sql = (
+        f"SELECT TOP 1 [{_COL_ENDESA_APP}], [{_COL_EDP_APP}] "
+        f"FROM {_ADMIN_VIEW} "
+        f"WHERE LOWER(LTRIM(RTRIM(CAST([{col}] AS NVARCHAR(512))))) = ?"
+    )
+
+    try:
+        conn = open_sql_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute(sql, (em,))
+            row = cur.fetchone()
+            if not row:
+                return None
+            endesa = bool(int(row[0])) if row[0] is not None else False
+            edp = bool(int(row[1])) if row[1] is not None else False
+            return {"endesacalc": endesa, "edpsimulator": edp}
+        finally:
+            conn.close()
+    except (pyodbc.Error, ValueError, TypeError):
+        return None
 
 
 def get_msal_redirect_uri() -> str:
